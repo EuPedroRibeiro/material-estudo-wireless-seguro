@@ -25,6 +25,14 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import material from './data/material.json';
+import {
+  defaultRendererConfig,
+  initializeRenderer,
+  rendererModeLabels,
+  type RendererConfig,
+  type RendererDiagnostics,
+  type RendererMode,
+} from './graphics';
 
 type ContentBlock =
   | {
@@ -136,6 +144,12 @@ const labModes = [
   { key: 'handshake', label: 'Handshake', icon: Radio },
   { key: 'defense', label: 'Defesa', icon: ShieldCheck },
 ] as const;
+
+const heroRendererConfig: RendererConfig = {
+  ...defaultRendererConfig,
+  debugOverlay: false,
+  fpsLimit: 45,
+};
 
 function App() {
   const sections = useMemo(() => buildSections(data.blocks), []);
@@ -330,7 +344,7 @@ function App() {
             <span>wireless lab mesh</span>
             <span>authorized only</span>
           </div>
-          <SignalCanvas mode={labMode} />
+          <SignalCanvas mode={labMode} config={heroRendererConfig} />
           <div className="hero-terminal">
             <code>$ scope --check wireless-lab --evidence clean</code>
             <span>escopo validado | evidência limpa | mitigação documentada</span>
@@ -700,6 +714,13 @@ function LiveLab({
   mode: (typeof labModes)[number]['key'];
   onModeChange: (mode: (typeof labModes)[number]['key']) => void;
 }) {
+  const [rendererConfig, setRendererConfig] = useState<RendererConfig>(defaultRendererConfig);
+  const [diagnostics, setDiagnostics] = useState<RendererDiagnostics | null>(null);
+
+  function updateRendererConfig(update: Partial<RendererConfig>) {
+    setRendererConfig((current) => ({ ...current, ...update }));
+  }
+
   return (
     <section className="tool-panel live-lab">
       <div className="panel-title">
@@ -709,7 +730,7 @@ function LiveLab({
         </div>
         <Zap size={18} />
       </div>
-      <SignalCanvas mode={mode} />
+      <SignalCanvas mode={mode} config={rendererConfig} onDiagnostics={setDiagnostics} />
       <div className="segmented">
         {labModes.map((item) => {
           const Icon = item.icon;
@@ -726,114 +747,251 @@ function LiveLab({
           );
         })}
       </div>
+      <div className="renderer-config" aria-label="Configuração gráfica">
+        <label>
+          <span>Renderer</span>
+          <select
+            value={rendererConfig.renderer}
+            onChange={(event) => updateRendererConfig({ renderer: event.target.value as RendererMode })}
+            aria-label="Selecionar renderizador"
+          >
+            {(Object.keys(rendererModeLabels) as RendererMode[]).map((key) => (
+              <option key={key} value={key}>
+                {rendererModeLabels[key]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>FPS</span>
+          <input
+            type="number"
+            min="15"
+            max="240"
+            step="15"
+            value={rendererConfig.fpsLimit}
+            onChange={(event) => updateRendererConfig({ fpsLimit: Number(event.target.value) || 60 })}
+            aria-label="Limite de FPS"
+          />
+        </label>
+        <div className="renderer-toggles">
+          <label>
+            <input
+              type="checkbox"
+              checked={rendererConfig.vsync}
+              onChange={(event) => updateRendererConfig({ vsync: event.target.checked })}
+            />
+            <span>VSync</span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={rendererConfig.useHardwareAcceleration}
+              onChange={(event) => updateRendererConfig({ useHardwareAcceleration: event.target.checked })}
+            />
+            <span>GPU</span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={rendererConfig.debugOverlay}
+              onChange={(event) => updateRendererConfig({ debugOverlay: event.target.checked })}
+            />
+            <span>Debug</span>
+          </label>
+        </div>
+      </div>
+      {rendererConfig.debugOverlay && (
+        <RendererDiagnosticsPanel diagnostics={diagnostics} config={rendererConfig} />
+      )}
     </section>
   );
 }
 
-function SignalCanvas({ mode }: { mode: string }) {
+function RendererDiagnosticsPanel({
+  diagnostics,
+  config,
+}: {
+  diagnostics: RendererDiagnostics | null;
+  config: RendererConfig;
+}) {
+  const active = diagnostics?.activeRenderer ?? 'none';
+  const errors = diagnostics?.initializationErrors ?? [];
+  const fallbacks = diagnostics?.fallbackEvents ?? [];
+
+  return (
+    <div className="renderer-diagnostics" aria-label="Diagnóstico gráfico">
+      <div className="renderer-diagnostics-head">
+        <span>{rendererModeLabels[config.renderer]}</span>
+        <strong>{diagnostics?.rendererLabel ?? 'Inicializando renderer'}</strong>
+      </div>
+      <dl>
+        <div>
+          <dt>Ativo</dt>
+          <dd>{active}</dd>
+        </div>
+        <div>
+          <dt>GPU</dt>
+          <dd>{diagnostics?.gpuName ?? 'detectando'}</dd>
+        </div>
+        <div>
+          <dt>Driver</dt>
+          <dd>{diagnostics?.driver ?? 'detectando'}</dd>
+        </div>
+        <div>
+          <dt>DirectX</dt>
+          <dd>{diagnostics?.directXAvailable ? 'sim' : 'não'}</dd>
+        </div>
+        <div>
+          <dt>OpenGL</dt>
+          <dd>{diagnostics?.openglAvailable ? 'sim' : 'não'}</dd>
+        </div>
+        <div>
+          <dt>FPS médio</dt>
+          <dd>{diagnostics?.fpsAverage ? `${diagnostics.fpsAverage}` : '0'}</dd>
+        </div>
+        <div>
+          <dt>VRAM</dt>
+          <dd>{diagnostics?.graphicsMemoryMB ? `${diagnostics.graphicsMemoryMB} MB` : 'n/d'}</dd>
+        </div>
+      </dl>
+      {[...fallbacks, ...errors].slice(-3).map((message) => (
+        <p key={message}>{message}</p>
+      ))}
+    </div>
+  );
+}
+
+function SignalCanvas({
+  mode,
+  config = defaultRendererConfig,
+  onDiagnostics,
+}: {
+  mode: string;
+  config?: RendererConfig;
+  onDiagnostics?: (diagnostics: RendererDiagnostics) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const modeRef = useRef(mode);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
-    const context = canvas.getContext('2d');
-    if (!context) return undefined;
 
-    let frame = 0;
+    let cancelled = false;
     let raf = 0;
+    let renderer: Awaited<ReturnType<typeof initializeRenderer>>['renderer'] | null = null;
+    let previousFrame = performance.now();
+    let previousRender = 0;
+    let previousDiagnostics = 0;
+
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       const ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(rect.width * ratio);
-      canvas.height = Math.floor(rect.height * ratio);
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      const width = Math.max(1, Math.floor(rect.width * ratio));
+      const height = Math.max(1, Math.floor(rect.height * ratio));
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
+      renderer?.resize(width, height, ratio);
     };
 
-    const draw = () => {
-      const { width, height } = canvas.getBoundingClientRect();
-      context.clearRect(0, 0, width, height);
-      context.fillStyle = '#11130f';
-      context.fillRect(0, 0, width, height);
+    const draw = (timeMs: number) => {
+      if (!renderer || cancelled) return;
+      const minFrameTime = config.fpsLimit > 0 ? 1000 / config.fpsLimit : 0;
+      const elapsedSinceRender = timeMs - previousRender;
+      const shouldRender = elapsedSinceRender >= minFrameTime || !config.vsync;
 
-      const nodes = [
-        { x: width * 0.18, y: height * 0.68, label: 'STA', color: '#4cc9f0' },
-        { x: width * 0.5, y: height * 0.35, label: 'AP', color: '#35e08f' },
-        { x: width * 0.82, y: height * 0.68, label: 'DEF', color: '#ffd166' },
-      ];
-
-      context.strokeStyle = 'rgba(245, 242, 232, 0.12)';
-      context.lineWidth = 1;
-      for (let i = 0; i < nodes.length; i += 1) {
-        for (let j = i + 1; j < nodes.length; j += 1) {
-          context.beginPath();
-          context.moveTo(nodes[i].x, nodes[i].y);
-          context.lineTo(nodes[j].x, nodes[j].y);
-          context.stroke();
-        }
+      if (shouldRender) {
+        resize();
+        renderer.render({
+          timeMs,
+          deltaMs: timeMs - previousFrame,
+          mode: modeRef.current,
+          width: canvas.width,
+          height: canvas.height,
+          pixelRatio: window.devicePixelRatio || 1,
+        });
+        previousFrame = timeMs;
+        previousRender = timeMs;
       }
 
-      nodes.forEach((node, index) => {
-        const pulse = 18 + Math.sin(frame / 20 + index) * 7;
-        context.beginPath();
-        context.arc(node.x, node.y, pulse, 0, Math.PI * 2);
-        context.strokeStyle = `${node.color}55`;
-        context.stroke();
-        context.beginPath();
-        context.arc(node.x, node.y, 10, 0, Math.PI * 2);
-        context.fillStyle = node.color;
-        context.fill();
-        context.fillStyle = '#f5f2e8';
-        context.font = '700 11px Inter, sans-serif';
-        context.fillText(node.label, node.x - 12, node.y + 31);
-      });
+      if (onDiagnostics && timeMs - previousDiagnostics > 700) {
+        onDiagnostics(renderer.getDiagnostics());
+        previousDiagnostics = timeMs;
+      }
 
-      const paths =
-        mode === 'handshake'
-          ? [
-              [nodes[0], nodes[1], '#4cc9f0'],
-              [nodes[1], nodes[0], '#35e08f'],
-              [nodes[0], nodes[1], '#ffd166'],
-              [nodes[1], nodes[0], '#ff6b6b'],
-            ]
-          : mode === 'defense'
-            ? [
-                [nodes[1], nodes[2], '#35e08f'],
-                [nodes[2], nodes[1], '#ffd166'],
-              ]
-            : [
-                [nodes[0], nodes[1], '#4cc9f0'],
-                [nodes[1], nodes[2], '#35e08f'],
-                [nodes[2], nodes[0], '#ffd166'],
-              ];
-
-      paths.forEach((path, index) => {
-        const [from, to, color] = path as [{ x: number; y: number }, { x: number; y: number }, string];
-        const t = ((frame + index * 32) % 120) / 120;
-        const x = from.x + (to.x - from.x) * t;
-        const y = from.y + (to.y - from.y) * t + Math.sin(t * Math.PI) * -18;
-        context.beginPath();
-        context.arc(x, y, 4.8, 0, Math.PI * 2);
-        context.fillStyle = color;
-        context.shadowBlur = 14;
-        context.shadowColor = color;
-        context.fill();
-        context.shadowBlur = 0;
-      });
-
-      frame += 1;
       raf = window.requestAnimationFrame(draw);
     };
 
-    resize();
-    draw();
+    initializeRenderer(canvas, config)
+      .then((result) => {
+        if (cancelled) {
+          result.renderer.dispose();
+          return;
+        }
+        renderer = result.renderer;
+        onDiagnostics?.(result.diagnostics);
+        resize();
+        raf = window.requestAnimationFrame(draw);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          // The factory should always reach software mode; this catches unexpected browser failures.
+          onDiagnostics?.({
+            ...defaultRendererConfigDiagnostics(config.renderer),
+            initializationErrors: [error instanceof Error ? error.message : String(error)],
+          });
+        }
+      });
+
     window.addEventListener('resize', resize);
     return () => {
+      cancelled = true;
       window.cancelAnimationFrame(raf);
+      renderer?.dispose();
       window.removeEventListener('resize', resize);
     };
-  }, [mode]);
+  }, [
+    config.debugOverlay,
+    config.fpsLimit,
+    config.renderer,
+    config.useHardwareAcceleration,
+    config.vsync,
+    onDiagnostics,
+  ]);
 
-  return <canvas ref={canvasRef} className="signal-canvas" aria-hidden="true" />;
+  return (
+    <canvas
+      key={`${config.renderer}-${config.useHardwareAcceleration}`}
+      ref={canvasRef}
+      className="signal-canvas"
+      aria-hidden="true"
+    />
+  );
+}
+
+function defaultRendererConfigDiagnostics(renderer: RendererMode): RendererDiagnostics {
+  return {
+    requestedRenderer: renderer,
+    activeRenderer: 'none',
+    rendererLabel: 'Falha de inicialização',
+    gpuName: 'Não detectada',
+    driver: 'Não detectado',
+    directXAvailable: false,
+    openglAvailable: false,
+    directXVersion: 'Indisponível',
+    openglVersion: 'Indisponível',
+    fpsAverage: 0,
+    graphicsMemoryMB: null,
+    hardwareAcceleration: false,
+    initializationErrors: [],
+    fallbackEvents: [],
+    timestamp: Date.now(),
+  };
 }
 
 function CommandLab() {

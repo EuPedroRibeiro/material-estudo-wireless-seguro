@@ -905,6 +905,135 @@ th {
   color: var(--text);
 }
 
+.renderer-config {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(74px, 0.85fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.renderer-config label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.renderer-config label > span,
+.renderer-diagnostics dt {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.renderer-config select,
+.renderer-config input[type="number"] {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(245, 242, 232, 0.04);
+  color: var(--text);
+}
+
+.renderer-config select {
+  padding: 0 8px;
+}
+
+.renderer-config input[type="number"] {
+  padding: 0 8px;
+}
+
+.renderer-toggles {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.renderer-toggles label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(245, 242, 232, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.renderer-toggles input {
+  accent-color: var(--amber);
+}
+
+.renderer-diagnostics {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(76, 201, 240, 0.22);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(76, 201, 240, 0.06), transparent),
+    rgba(5, 8, 8, 0.72);
+}
+
+.renderer-diagnostics-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.renderer-diagnostics-head span {
+  color: var(--cyan);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.renderer-diagnostics-head strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.renderer-diagnostics dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+.renderer-diagnostics dl div {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid rgba(245, 242, 232, 0.08);
+  border-radius: 4px;
+  background: rgba(245, 242, 232, 0.035);
+}
+
+.renderer-diagnostics dd {
+  overflow: hidden;
+  margin: 3px 0 0;
+  color: #e7e1ce;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.renderer-diagnostics p {
+  margin: 0;
+  color: #ffd166;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
 .command-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
