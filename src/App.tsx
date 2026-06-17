@@ -154,6 +154,10 @@ function App() {
   const progress = importantSections.length
     ? Math.round((completedCount / importantSections.length) * 100)
     : 0;
+  const moduleSections = importantSections.filter((section) => /^MÓDULO/i.test(section.title));
+  const appendixSections = importantSections.filter((section) => /^APÊNDICE|Modelo de Relatório/i.test(section.title));
+  const reportSection = appendixSections.find((section) => /Modelo de Relatório/i.test(section.title)) ?? appendixSections[0];
+  const nextSection = importantSections.find((section) => !completed.has(section.id)) ?? activeSection;
 
   const blockToSection = useMemo(() => {
     const map = new Map<string, Section>();
@@ -259,22 +263,81 @@ function App() {
         </section>
       )}
 
-      <section className="mission-strip">
+      <section className="academy-hero">
+        <div className="hero-copy">
+          <div className="academy-badge">
+            <ShieldCheck size={16} />
+            <span>SYWP lab book</span>
+          </div>
+          <h2>Segurança Wireless do zero ao relatório profissional</h2>
+          <p>
+            Uma trilha de estudo com cara de formação prática: base, rádio, ferramentas,
+            defesa, prova e relatório sem sair do escopo autorizado.
+          </p>
+          <div className="hero-actions">
+            <button type="button" onClick={() => chooseSection(nextSection.id)}>
+              <Play size={17} />
+              <span>{completed.has(nextSection.id) ? 'Revisar trilha' : 'Continuar estudo'}</span>
+            </button>
+            <a href="/material_estudo_premium_wireless_seguro.docx">
+              <Download size={17} />
+              <span>DOCX original</span>
+            </a>
+          </div>
+        </div>
+
+        <div className="hero-stage">
+          <div className="hero-stage-head">
+            <span>live scan</span>
+            <span>authorized only</span>
+          </div>
+          <SignalCanvas mode={labMode} />
+          <div className="hero-terminal">
+            <code>$ scope --check lab-wireless</code>
+            <span>escopo validado | evidência limpa | mitigação obrigatória</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="academy-metrics">
         <div className="mission-stat">
           <Activity size={18} />
-          <span>{progress}% concluído</span>
+          <strong>{progress}%</strong>
+          <span>concluído</span>
         </div>
         <div className="progress-track" aria-label={`Progresso ${progress}%`}>
           <span style={{ width: `${progress}%` }} />
         </div>
         <div className="mission-stat">
           <FileText size={18} />
-          <span>{data.metadata.blockCount} blocos preservados</span>
+          <strong>{data.metadata.blockCount}</strong>
+          <span>blocos preservados</span>
         </div>
-        <div className="mission-stat hide-small">
+        <div className="mission-stat">
           <MonitorSmartphone size={18} />
+          <strong>3 telas</strong>
           <span>PC, notebook e celular</span>
         </div>
+      </section>
+
+      <section className="course-strip" aria-label="Trilhas de formação">
+        {moduleSections.slice(0, 6).map((section) => (
+          <button
+            key={section.id}
+            type="button"
+            className={section.id === activeSection.id ? 'is-active' : ''}
+            onClick={() => chooseSection(section.id)}
+          >
+            <span>{String(section.index).padStart(2, '0')}</span>
+            <strong>{compactTitle(section.title)}</strong>
+            <small>{completed.has(section.id) ? 'concluído' : `${section.blocks.length} blocos`}</small>
+          </button>
+        ))}
+        <button type="button" className="course-card-report" onClick={() => chooseSection(reportSection?.id ?? activeSection.id)}>
+          <span>final</span>
+          <strong>Cheat sheet + relatório</strong>
+          <small>entrega profissional</small>
+        </button>
       </section>
 
       <div className="main-grid">
