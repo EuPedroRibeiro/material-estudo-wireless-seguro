@@ -145,6 +145,7 @@ function App() {
   const [fontScale, setFontScale] = useState(1);
   const [completed, setCompleted] = useState<Set<string>>(() => readProgress());
   const [labMode, setLabMode] = useState<(typeof labModes)[number]['key']>('map');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const activeSection = sections.find((section) => section.id === activeSectionId) ?? sections[0];
   const importantSections = sections.filter((section) =>
@@ -157,7 +158,17 @@ function App() {
   const moduleSections = importantSections.filter((section) => /^MÓDULO/i.test(section.title));
   const appendixSections = importantSections.filter((section) => /^APÊNDICE|Modelo de Relatório/i.test(section.title));
   const reportSection = appendixSections.find((section) => /Modelo de Relatório/i.test(section.title)) ?? appendixSections[0];
+  const journeySections = [...moduleSections, ...(reportSection ? [reportSection] : [])];
+  const activeJourneyIndex = Math.max(
+    0,
+    journeySections.findIndex((section) => section.id === activeSection.id),
+  );
   const nextSection = importantSections.find((section) => !completed.has(section.id)) ?? activeSection;
+  const nextJourneySection =
+    journeySections.find((section) => !completed.has(section.id) && section.id !== activeSection.id) ??
+    reportSection ??
+    activeSection;
+  const currentReaderSummary = sectionDigest(activeSection);
 
   const blockToSection = useMemo(() => {
     const map = new Map<string, Section>();
@@ -181,6 +192,7 @@ function App() {
 
   function chooseSection(id: string) {
     setActiveSectionId(id);
+    setSidebarOpen(false);
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
   }
 
@@ -195,6 +207,7 @@ function App() {
 
   function jumpToResult(block: ContentBlock, section: Section) {
     setActiveSectionId(section.id);
+    setSidebarOpen(false);
     window.setTimeout(() => {
       document.getElementById(block.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 80);
@@ -206,14 +219,22 @@ function App() {
       style={{ '--reader-scale': fontScale } as React.CSSProperties}
     >
       <header className="topbar">
+        <button
+          className="icon-button mobile-trail-button"
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Abrir trilha de estudo"
+        >
+          <ListChecks size={18} />
+        </button>
         <div className="brand-block">
           <div className="brand-mark" aria-hidden="true">
             <Wifi size={22} />
           </div>
           <div>
-            <p className="eyebrow">Laboratório autorizado</p>
-            <h1>{data.metadata.title}</h1>
-            <p>{data.metadata.subtitle}</p>
+            <p className="eyebrow">Academia Wireless</p>
+            <h1>Wireless Lab OS</h1>
+            <p>{data.metadata.title}</p>
           </div>
         </div>
 
@@ -228,6 +249,10 @@ function App() {
         </label>
 
         <div className="top-actions">
+          <button className="top-pill" type="button" onClick={() => chooseSection(nextSection.id)}>
+            <Play size={16} />
+            <span>{completed.has(nextSection.id) ? 'Revisar' : 'Continuar'}</span>
+          </button>
           <button
             className={`icon-button ${focusMode ? 'is-active' : ''}`}
             onClick={() => setFocusMode((value) => !value)}
@@ -263,17 +288,31 @@ function App() {
         </section>
       )}
 
-      <section className="academy-hero">
+      <section className="academy-hero os-hero">
         <div className="hero-copy">
           <div className="academy-badge">
             <ShieldCheck size={16} />
-            <span>SYWP lab book</span>
+            <span>Lab autorizado | defesa | relatório</span>
           </div>
-          <h2>Segurança Wireless do zero ao relatório profissional</h2>
+          <h2>Segurança Wireless em modo laboratório autorizado</h2>
           <p>
-            Uma trilha de estudo com cara de formação prática: base, rádio, ferramentas,
-            defesa, prova e relatório sem sair do escopo autorizado.
+            Uma mesa de comando para estudar fundamentos, rádio, ferramentas, defesa, prova e relatório
+            sem perder o escopo ético: tudo organizado para prática responsável e leitura confortável.
           </p>
+          <div className="hero-proof-grid" aria-label="Indicadores do material">
+            <div>
+              <strong>{moduleSections.length}</strong>
+              <span>módulos</span>
+            </div>
+            <div>
+              <strong>{data.metadata.blockCount}</strong>
+              <span>blocos</span>
+            </div>
+            <div>
+              <strong>{progress}%</strong>
+              <span>progresso</span>
+            </div>
+          </div>
           <div className="hero-actions">
             <button type="button" onClick={() => chooseSection(nextSection.id)}>
               <Play size={17} />
@@ -288,13 +327,13 @@ function App() {
 
         <div className="hero-stage">
           <div className="hero-stage-head">
-            <span>live scan</span>
+            <span>wireless lab mesh</span>
             <span>authorized only</span>
           </div>
           <SignalCanvas mode={labMode} />
           <div className="hero-terminal">
-            <code>$ scope --check lab-wireless</code>
-            <span>escopo validado | evidência limpa | mitigação obrigatória</span>
+            <code>$ scope --check wireless-lab --evidence clean</code>
+            <span>escopo validado | evidência limpa | mitigação documentada</span>
           </div>
         </div>
       </section>
@@ -320,37 +359,107 @@ function App() {
         </div>
       </section>
 
-      <section className="course-strip" aria-label="Trilhas de formação">
-        {moduleSections.slice(0, 6).map((section) => (
-          <button
-            key={section.id}
-            type="button"
-            className={section.id === activeSection.id ? 'is-active' : ''}
-            onClick={() => chooseSection(section.id)}
-          >
-            <span>{String(section.index).padStart(2, '0')}</span>
-            <strong>{compactTitle(section.title)}</strong>
-            <small>{completed.has(section.id) ? 'concluído' : `${section.blocks.length} blocos`}</small>
-          </button>
-        ))}
-        <button type="button" className="course-card-report" onClick={() => chooseSection(reportSection?.id ?? activeSection.id)}>
-          <span>final</span>
-          <strong>Cheat sheet + relatório</strong>
-          <small>entrega profissional</small>
-        </button>
+      <section className="journey-shell" aria-label="Mapa da jornada">
+        <div className="journey-heading">
+          <div>
+            <p className="eyebrow">Mapa de progresso</p>
+            <h2>Da base ao relatório premium</h2>
+          </div>
+          <p>
+            Avance como uma trilha: fundamentos, redes, Wi-Fi, laboratório, prova e entrega profissional.
+          </p>
+        </div>
+        <div className="journey-map" style={{ '--steps': journeySections.length } as React.CSSProperties}>
+          {journeySections.map((section, index) => {
+            const isActive = section.id === activeSection.id;
+            const isDone = completed.has(section.id);
+            const isReport = section.id === reportSection?.id;
+            const stateClass = isActive
+              ? 'is-current'
+              : isDone
+                ? 'is-complete'
+                : index <= activeJourneyIndex + 1
+                  ? 'is-next'
+                  : 'is-locked';
+            const stateLabel = isDone
+              ? 'concluído'
+              : isActive
+                ? 'em estudo'
+                : isReport
+                  ? 'entrega final'
+                  : index === activeJourneyIndex + 1
+                    ? 'próximo'
+                    : 'em espera';
+
+            return (
+              <button
+                key={section.id}
+                type="button"
+                className={`journey-node ${stateClass} ${isReport ? 'is-report' : ''}`}
+                onClick={() => chooseSection(section.id)}
+                aria-current={isActive ? 'step' : undefined}
+              >
+                <span className="node-orb">
+                  {isDone ? <Check size={15} /> : isReport ? <FileText size={15} /> : String(index + 1).padStart(2, '0')}
+                </span>
+                <span className="node-content">
+                  <strong>{compactTitle(section.title)}</strong>
+                  <small>{sectionDigest(section)}</small>
+                </span>
+                <span className="node-meta">{stateLabel}</span>
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       <div className="main-grid">
-        <aside className="sidebar">
+        <div
+          className={`sidebar-backdrop ${sidebarOpen ? 'is-visible' : ''}`}
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+        <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
           <div className="sidebar-head">
-            <p className="eyebrow">Trilha</p>
-            <button
-              className="icon-button small"
-              type="button"
-              title="Resetar progresso"
-              onClick={() => setCompleted(new Set())}
-            >
-              <RotateCcw size={16} />
+            <div>
+              <p className="eyebrow">Trilha</p>
+              <h3>Command Center</h3>
+            </div>
+            <div className="sidebar-actions">
+              <button
+                className="icon-button small mobile-close"
+                type="button"
+                title="Fechar trilha"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                className="icon-button small"
+                type="button"
+                title="Resetar progresso"
+                onClick={() => setCompleted(new Set())}
+              >
+                <RotateCcw size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="sidebar-dashboard">
+            <div className="progress-dial" style={{ '--value': `${progress}%` } as React.CSSProperties}>
+              <strong>{progress}%</strong>
+              <span>feito</span>
+            </div>
+            <div className="sidebar-now">
+              <span>Agora</span>
+              <strong>{compactTitle(activeSection.title)}</strong>
+              <small>{currentReaderSummary}</small>
+            </div>
+          </div>
+          <div className="next-card">
+            <p className="eyebrow">Próximo passo</p>
+            <button type="button" onClick={() => chooseSection(nextJourneySection.id)}>
+              <Zap size={15} />
+              <span>{compactTitle(nextJourneySection.title)}</span>
             </button>
           </div>
           <nav className="section-nav" aria-label="Seções do material">
@@ -472,6 +581,13 @@ function compactTitle(title: string) {
   return title
     .replace(/^MÓDULO\s+(\d+):\s*/i, '$1. ')
     .replace(/^APÊNDICE\s+([A-Z]):\s*/i, 'Ap. $1 - ');
+}
+
+function sectionDigest(section: Section) {
+  const source = section.blocks.find((block) => block.type !== 'heading1');
+  if (!source) return `${section.blocks.length} blocos de estudo`;
+  const text = source.type === 'table' ? source.rows.flat().join(' ') : source.text;
+  return text.replace(/\s+/g, ' ').slice(0, 118);
 }
 
 function ContentBlockView({ block, query }: { block: ContentBlock; query: string }) {
