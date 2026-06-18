@@ -16,6 +16,7 @@
   --accent-soft: rgba(255, 31, 45, 0.1);
   --danger: #e50914;
   --reader-scale: 1;
+  --nav-height: 88px;
 }
 
 * {
@@ -407,9 +408,10 @@ mark {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 360px);
   gap: 28px;
+  align-content: start;
   align-items: end;
-  min-height: calc(100vh - 74px);
-  padding: 68px 7vw 54px;
+  min-height: calc(100svh - var(--nav-height));
+  padding: clamp(48px, 7vh, 72px) 7vw clamp(42px, 6vh, 64px);
   overflow: hidden;
   border-bottom: 1px solid var(--line);
 }
@@ -506,8 +508,8 @@ mark {
 .hero-experience {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(420px, 0.82fr);
-  min-height: 100vh;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.72fr);
+  min-height: calc(100svh - var(--nav-height));
   overflow: hidden;
   border-bottom: 1px solid var(--line);
   background:
@@ -521,14 +523,14 @@ mark {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 70px 7vw;
+  padding: clamp(58px, 8vh, 86px) 7vw clamp(52px, 7vh, 78px);
 }
 
 .hero-copy h2 {
   max-width: 920px;
   margin: 16px 0 0;
   color: var(--paper);
-  font-size: 6rem;
+  font-size: clamp(4.05rem, 5.2vw, 5.45rem);
   font-weight: 950;
   line-height: 0.94;
   text-shadow:
@@ -592,7 +594,7 @@ mark {
   display: grid;
   align-content: center;
   gap: 14px;
-  padding: 70px 4vw 70px 0;
+  padding: clamp(56px, 8vh, 80px) 4vw clamp(52px, 7vh, 78px) 0;
 }
 
 .hero-visual-head {
@@ -616,7 +618,7 @@ mark {
 }
 
 .hero-visual .signal-canvas {
-  min-height: 430px;
+  min-height: clamp(340px, 44vh, 430px);
 }
 
 .hero-metrics {
