@@ -74,6 +74,7 @@ type LabMode = (typeof labModes)[number]['key'];
 
 const data = material as MaterialData;
 const storageKey = 'wireless-study-progress-v1';
+const entrySeenKey = 'wireless-lab-drive-entry-seen';
 const productName = 'WIRELESS LAB DRIVE';
 
 const navItems = [
@@ -172,6 +173,8 @@ function App() {
   const [focusMode, setFocusMode] = useState(false);
   const [fontScale, setFontScale] = useState(1);
   const [completed, setCompleted] = useState<Set<string>>(() => readProgress());
+  const [entrySeen, setEntrySeen] = useState(() => readEntrySeen());
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [labMode, setLabMode] = useState<LabMode>('map');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -187,6 +190,8 @@ function App() {
     activeSection;
   const journeySections = [...moduleSections, reportSection].filter(Boolean);
   const completedCount = importantSections.filter((section) => completed.has(section.id)).length;
+  const pendingSections = importantSections.filter((section) => !completed.has(section.id));
+  const recentlyCompletedSections = importantSections.filter((section) => completed.has(section.id)).slice(-5);
   const progress = importantSections.length ? Math.round((completedCount / importantSections.length) * 100) : 0;
   const nextSection = importantSections.find((section) => !completed.has(section.id)) ?? activeSection;
   const activeJourneyIndex = Math.max(
@@ -220,6 +225,30 @@ function App() {
     window.requestAnimationFrame(() => scrollToSection(scrollTarget));
   }
 
+  function enterLab() {
+    saveEntrySeen();
+    setEntrySeen(true);
+    chooseSection(nextSection.id);
+  }
+
+  function replayEntry() {
+    clearEntrySeen();
+    setEntrySeen(false);
+    setMobileMenuOpen(false);
+    window.requestAnimationFrame(() => scrollToSection('entry'));
+  }
+
+  function handleHomeSelect() {
+    setMobileMenuOpen(false);
+    scrollToSection(entrySeen ? 'hero' : 'entry');
+  }
+
+  function openReviewMode() {
+    setReviewOpen(true);
+    setMobileMenuOpen(false);
+    window.requestAnimationFrame(() => scrollToSection('review'));
+  }
+
   function toggleDone(id: string) {
     setCompleted((current) => {
       const next = new Set(current);
@@ -249,6 +278,9 @@ function App() {
         mobileOpen={mobileMenuOpen}
         onMobileOpenChange={setMobileMenuOpen}
         onFocusToggle={() => setFocusMode((value) => !value)}
+        onHomeSelect={handleHomeSelect}
+        onReplayEntry={replayEntry}
+        onReviewOpen={openReviewMode}
         focusMode={focusMode}
       />
 
@@ -256,7 +288,7 @@ function App() {
         <SearchResults results={searchResults} onResultSelect={jumpToResult} />
       )}
 
-      <LoadingGate progress={progress} nextSection={nextSection} onEnter={() => chooseSection(nextSection.id)} />
+      {!entrySeen && <LoadingGate progress={progress} nextSection={nextSection} onEnter={enterLab} />}
 
       <HeroExperience
         progress={progress}
@@ -274,6 +306,17 @@ function App() {
         totalCount={importantSections.length}
         onNext={() => chooseSection(nextSection.id)}
         onReset={() => setCompleted(new Set())}
+      />
+
+      <ExamReviewPanel
+        open={reviewOpen}
+        progress={progress}
+        pendingSections={pendingSections}
+        completedSections={recentlyCompletedSections}
+        completedCount={completedCount}
+        totalCount={importantSections.length}
+        onClose={() => setReviewOpen(false)}
+        onSelectSection={chooseSection}
       />
 
       <StoryChapters moduleSections={moduleSections} onSelectSection={chooseSection} />
@@ -313,6 +356,9 @@ function StudyNavigation({
   mobileOpen,
   onMobileOpenChange,
   onFocusToggle,
+  onHomeSelect,
+  onReplayEntry,
+  onReviewOpen,
   focusMode,
 }: {
   query: string;
@@ -321,6 +367,9 @@ function StudyNavigation({
   mobileOpen: boolean;
   onMobileOpenChange: (value: boolean) => void;
   onFocusToggle: () => void;
+  onHomeSelect: () => void;
+  onReplayEntry: () => void;
+  onReviewOpen: () => void;
   focusMode: boolean;
 }) {
   return (
@@ -333,7 +382,7 @@ function StudyNavigation({
       >
         <Menu size={18} />
       </button>
-      <button className="brand-lockup" type="button" onClick={() => scrollToSection('entry')}>
+      <button className="brand-lockup" type="button" onClick={onHomeSelect}>
         <span className="brand-symbol">
           <Wifi size={20} />
         </span>
@@ -352,6 +401,10 @@ function StudyNavigation({
             key={item.id}
             type="button"
             onClick={() => {
+              if (item.id === 'entry') {
+                onHomeSelect();
+                return;
+              }
               onMobileOpenChange(false);
               scrollToSection(item.id);
             }}
@@ -375,6 +428,14 @@ function StudyNavigation({
         <span className="nav-progress" aria-label={`Progresso ${progress}%`}>
           <i style={{ width: `${progress}%` }} />
         </span>
+        <button className="nav-text-button" type="button" onClick={onReviewOpen}>
+          <ListChecks size={16} />
+          <span>Revisão</span>
+        </button>
+        <button className="nav-text-button is-quiet" type="button" onClick={onReplayEntry}>
+          <RotateCcw size={15} />
+          <span>Abertura</span>
+        </button>
         <button
           className={`nav-icon ${focusMode ? 'is-active' : ''}`}
           type="button"
@@ -425,8 +486,15 @@ function LoadingGate({
   nextSection: Section;
   onEnter: () => void;
 }) {
+  const reveal = useScrollReveal<HTMLElement>();
+
   return (
-    <section className="loading-gate" id="entry" aria-label="Entrada do laboratório">
+    <section
+      ref={reveal.ref}
+      className={`loading-gate reveal-on-scroll ${reveal.isVisible ? 'is-visible' : ''}`}
+      id="entry"
+      aria-label="Entrada do laboratório"
+    >
       <div className="gate-frame">
         <p className="kicker">Authorized lab mode</p>
         <h1>Load Wireless Lab</h1>
@@ -442,7 +510,7 @@ function LoadingGate({
       </div>
       <button className="enter-drive" type="button" onClick={onEnter}>
         <Play size={18} />
-        <span>Enter the grid</span>
+        <span>Enter the lab</span>
         <small>{compactTitle(nextSection.title)}</small>
       </button>
     </section>
@@ -462,8 +530,14 @@ function HeroExperience({
   labMode: LabMode;
   onStart: () => void;
 }) {
+  const reveal = useScrollReveal<HTMLElement>();
+
   return (
-    <section className="hero-experience" id="hero">
+    <section
+      ref={reveal.ref}
+      className={`hero-experience reveal-on-scroll ${reveal.isVisible ? 'is-visible' : ''}`}
+      id="hero"
+    >
       <div className="hero-copy">
         <p className="kicker">Laboratório autorizado</p>
         <h2>Segurança Wireless do zero ao raciocínio de pentest autorizado</h2>
@@ -485,7 +559,7 @@ function HeroExperience({
 
       <div className="hero-visual" aria-label="Rede simulada">
         <div className="hero-visual-head">
-          <span>Wireless study grid</span>
+          <span>Wireless lab drive</span>
           <strong>Authorized only</strong>
         </div>
         <SignalCanvas mode={labMode} config={heroRendererConfig} />
@@ -545,6 +619,126 @@ function ProgressRail({
   );
 }
 
+function ExamReviewPanel({
+  open,
+  progress,
+  pendingSections,
+  completedSections,
+  completedCount,
+  totalCount,
+  onClose,
+  onSelectSection,
+}: {
+  open: boolean;
+  progress: number;
+  pendingSections: Section[];
+  completedSections: Section[];
+  completedCount: number;
+  totalCount: number;
+  onClose: () => void;
+  onSelectSection: (id: string, scrollTarget?: string) => void;
+}) {
+  const reveal = useScrollReveal<HTMLElement>();
+  const focusSection = pendingSections[0] ?? completedSections[completedSections.length - 1];
+  const pendingToday = Math.min(3, pendingSections.length);
+  const goals = [
+    {
+      label: 'Revisar os 3 próximos blocos pendentes',
+      done: pendingSections.length === 0 || completedCount >= Math.min(3, totalCount),
+    },
+    {
+      label: 'Marcar conceitos dominados sem pular fundamento',
+      done: progress >= 40,
+    },
+    {
+      label: 'Fechar a sessão com relatório ou nota de campo',
+      done: progress >= 75,
+    },
+  ];
+
+  if (!open) return null;
+
+  return (
+    <section
+      ref={reveal.ref}
+      className={`exam-review-panel reveal-on-scroll ${reveal.isVisible ? 'is-visible' : ''}`}
+      id="review"
+      aria-label="Revisão de prova"
+    >
+      <div className="review-copy">
+        <p className="kicker">Revisão de prova</p>
+        <h2>Plano de foco para a próxima sessão.</h2>
+        <p>
+          Um resumo limpo do que falta, do que já foi marcado e do melhor próximo passo para manter o estudo técnico em
+          ritmo de prova.
+        </p>
+      </div>
+
+      <div className="review-dashboard">
+        <div className="review-summary">
+          <MetricBlock label="Progresso" value={`${progress}%`} />
+          <MetricBlock label="Pendentes" value={pendingSections.length} />
+          <MetricBlock label="Concluídos" value={completedCount} />
+        </div>
+
+        <div className="review-focus">
+          <span>Foco sugerido</span>
+          <strong>{focusSection ? compactTitle(focusSection.title) : 'Relatório de aprendizado'}</strong>
+          <p>{focusSection ? sectionDigest(focusSection) : 'Tudo marcado. Use o relatório final para consolidar.'}</p>
+          {focusSection && (
+            <button type="button" onClick={() => onSelectSection(focusSection.id)}>
+              <Play size={16} />
+              Abrir foco
+            </button>
+          )}
+        </div>
+
+        <div className="review-checklist">
+          <div className="panel-title">
+            <div>
+              <p className="kicker">Meta diária</p>
+              <h3>{pendingToday ? `${pendingToday} blocos críticos` : 'Revisão fechada'}</h3>
+            </div>
+            <ListChecks size={18} />
+          </div>
+          {goals.map((goal) => (
+            <span key={goal.label} className={goal.done ? 'is-done' : ''}>
+              <Check size={15} />
+              {goal.label}
+            </span>
+          ))}
+        </div>
+
+        <div className="review-lists">
+          <div>
+            <span>Pendentes</span>
+            {pendingSections.slice(0, 5).map((section) => (
+              <button key={section.id} type="button" onClick={() => onSelectSection(section.id)}>
+                {compactTitle(section.title)}
+              </button>
+            ))}
+            {!pendingSections.length && <em>Nenhum bloco pendente.</em>}
+          </div>
+          <div>
+            <span>Concluídos recentes</span>
+            {completedSections.map((section) => (
+              <button key={section.id} type="button" onClick={() => onSelectSection(section.id)}>
+                {compactTitle(section.title)}
+              </button>
+            ))}
+            {!completedSections.length && <em>Marque um módulo para criar histórico.</em>}
+          </div>
+        </div>
+
+        <button className="review-close" type="button" onClick={onClose}>
+          <X size={16} />
+          Fechar revisão
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function StoryChapters({
   moduleSections,
   onSelectSection,
@@ -552,6 +746,7 @@ function StoryChapters({
   moduleSections: Section[];
   onSelectSection: (id: string, scrollTarget?: string) => void;
 }) {
+  const reveal = useScrollReveal<HTMLElement>();
   const chapters = [
     {
       title: 'Fundamentos',
@@ -580,7 +775,11 @@ function StoryChapters({
   ].filter((chapter) => chapter.section);
 
   return (
-    <section className="story-chapters" aria-label="Capítulos narrativos">
+    <section
+      ref={reveal.ref}
+      className={`story-chapters reveal-on-scroll ${reveal.isVisible ? 'is-visible' : ''}`}
+      aria-label="Capítulos narrativos"
+    >
       {chapters.map((chapter, index) => {
         const Icon = chapter.icon;
         return (
@@ -614,8 +813,14 @@ function ModuleJourneyMap({
   activeJourneyIndex: number;
   onSelectSection: (id: string, scrollTarget?: string) => void;
 }) {
+  const reveal = useScrollReveal<HTMLElement>();
+
   return (
-    <section className="module-journey" id="journey">
+    <section
+      ref={reveal.ref}
+      className={`module-journey reveal-on-scroll ${reveal.isVisible ? 'is-visible' : ''}`}
+      id="journey"
+    >
       <div className="section-intro">
         <p className="kicker">Trilha em progresso</p>
         <h2>A rota técnica</h2>
@@ -695,8 +900,10 @@ function StudyReader({
   onSectionSelect: (id: string, scrollTarget?: string) => void;
   onToggleDone: (id: string) => void;
 }) {
+  const reveal = useScrollReveal<HTMLElement>();
+
   return (
-    <article className="study-reader">
+    <article ref={reveal.ref} className={`study-reader reveal-on-scroll ${reveal.isVisible ? 'is-visible' : ''}`}>
       <div className="reader-toolbar">
         <div>
           <p className="kicker">Modo estudo ativo</p>
@@ -758,13 +965,14 @@ function StudyReader({
 function LabPanel({ mode, onModeChange }: { mode: LabMode; onModeChange: (mode: LabMode) => void }) {
   const [rendererConfig, setRendererConfig] = useState<RendererConfig>(defaultRendererConfig);
   const [diagnostics, setDiagnostics] = useState<RendererDiagnostics | null>(null);
+  const reveal = useScrollReveal<HTMLElement>();
 
   function updateRendererConfig(update: Partial<RendererConfig>) {
     setRendererConfig((current) => ({ ...current, ...update }));
   }
 
   return (
-    <aside className="lab-panel" id="lab">
+    <aside ref={reveal.ref} className={`lab-panel reveal-on-scroll ${reveal.isVisible ? 'is-visible' : ''}`} id="lab">
       <div className="lab-panel-head">
         <p className="kicker">Lab Panel</p>
         <h2>Rede viva</h2>
@@ -1092,8 +1300,14 @@ function ReportSection({
   onOpenReport: (id: string, scrollTarget?: string) => void;
   progress: number;
 }) {
+  const reveal = useScrollReveal<HTMLElement>();
+
   return (
-    <section className="report-section" id="report">
+    <section
+      ref={reveal.ref}
+      className={`report-section reveal-on-scroll ${reveal.isVisible ? 'is-visible' : ''}`}
+      id="report"
+    >
       <div>
         <p className="kicker">Relatório de aprendizado</p>
         <h2>Transforme estudo em entrega clara.</h2>
@@ -1350,6 +1564,36 @@ function buildSections(blocks: ContentBlock[]): Section[] {
   return sections.map((section, index) => ({ ...section, index: index + 1 }));
 }
 
+function useScrollReveal<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setIsVisible(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '0px 0px -12% 0px', threshold: 0.16 },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, isVisible };
+}
+
 function readProgress() {
   try {
     const raw = localStorage.getItem(storageKey);
@@ -1357,6 +1601,30 @@ function readProgress() {
     return new Set<string>(JSON.parse(raw));
   } catch {
     return new Set<string>();
+  }
+}
+
+function readEntrySeen() {
+  try {
+    return localStorage.getItem(entrySeenKey) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function saveEntrySeen() {
+  try {
+    localStorage.setItem(entrySeenKey, 'true');
+  } catch {
+    // Non-critical: the gate still works for the current session.
+  }
+}
+
+function clearEntrySeen() {
+  try {
+    localStorage.removeItem(entrySeenKey);
+  } catch {
+    // Non-critical: only affects replay persistence.
   }
 }
 
