@@ -18,13 +18,12 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
-  Sparkles,
   Terminal,
   Wifi,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import material from './data/material.json';
+import { studyModules, validateStudyModules, type StudyBlock, type StudyModule } from './data/studyModules';
 import {
   defaultRendererConfig,
   initializeRenderer,
@@ -34,55 +33,18 @@ import {
   type RendererMode,
 } from './graphics';
 
-type ContentBlock =
-  | {
-      id: string;
-      type: 'paragraph' | 'heading1' | 'heading2' | 'heading' | 'list';
-      style: string | null;
-      text: string;
-    }
-  | {
-      id: string;
-      type: 'table';
-      rows: string[][];
-    };
+type ContentBlock = StudyBlock;
 
 type Section = {
   id: string;
+  order: number;
   title: string;
+  summary: string;
+  objective: string;
+  sources: string[];
+  goals: string[];
   blocks: ContentBlock[];
   index: number;
-};
-
-type MaterialData = {
-  metadata: {
-    title: string;
-    subtitle: string;
-    description: string;
-    sourceFile: string;
-    paragraphCount: number;
-    tableCount: number;
-    blockCount: number;
-    contentHash: string;
-    generatedFrom?: string;
-  };
-  blocks: ContentBlock[];
-};
-
-type RawMaterialData = {
-  metadata: {
-    title?: string;
-    subtitle?: string;
-    description?: string;
-    sourceFile?: string;
-    paragraphCount?: number;
-    tableCount?: number;
-    blockCount?: number;
-    contentHash?: string;
-    generatedFrom?: string;
-  };
-  blocks?: ContentBlock[];
-  conteudo_completo?: string;
 };
 
 type LabMode = (typeof labModes)[number]['key'];
@@ -96,7 +58,9 @@ type SearchResult = {
   matchLabel: string;
 };
 
-const data = normalizeMaterialData(material as RawMaterialData);
+validateStudyModules(studyModules);
+
+const totalBlockCount = studyModules.reduce((total, module) => total + module.blocks.length, 0);
 const storageKey = 'wireless-study-progress-v1';
 const entrySeenKey = 'wireless-lab-drive-entry-seen';
 
@@ -189,7 +153,7 @@ const heroRendererConfig: RendererConfig = {
 };
 
 function App() {
-  const sections = useMemo(() => buildSections(data.blocks), []);
+  const sections = useMemo(() => buildSections(studyModules), []);
   const [activeSectionId, setActiveSectionId] = useState(() => sections[0]?.id ?? 'inicio');
   const [query, setQuery] = useState('');
   const [focusMode, setFocusMode] = useState(false);
@@ -201,16 +165,13 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const activeSection = sections.find((section) => section.id === activeSectionId) ?? sections[0];
-  const importantSections = sections.filter((section) =>
-    /^(MÓDULO|APÊNDICE|Modelo de Relatório)/i.test(section.title),
-  );
-  const moduleSections = importantSections.filter((section) => /^MÓDULO/i.test(section.title));
-  const appendixSections = importantSections.filter((section) => /^APÊNDICE|Modelo de Relatório/i.test(section.title));
+  const importantSections = sections;
+  const moduleSections = sections;
   const reportSection =
-    appendixSections.find((section) => /Modelo de Relatório/i.test(section.title)) ??
-    appendixSections[appendixSections.length - 1] ??
+    sections.find((section) => section.id === 'relatorio-tecnico-executivo') ??
+    sections.find((section) => /relatório|relatorio/i.test(section.title)) ??
     activeSection;
-  const journeySections = [...moduleSections, reportSection].filter(Boolean);
+  const journeySections = moduleSections;
   const completedCount = importantSections.filter((section) => completed.has(section.id)).length;
   const pendingSections = importantSections.filter((section) => !completed.has(section.id));
   const recentlyCompletedSections = importantSections.filter((section) => completed.has(section.id)).slice(-5);
@@ -304,7 +265,7 @@ function App() {
       <HeroExperience
         progress={progress}
         moduleCount={moduleSections.length}
-        blockCount={data.metadata.blockCount}
+        blockCount={totalBlockCount}
         labMode={labMode}
         onStart={() => chooseSection(nextSection.id)}
       />
@@ -519,7 +480,7 @@ function SearchPanel({
         <section className="search-results" aria-label="Resultados de busca">
           <div className="search-results-head">
             <p className="kicker">Busca</p>
-            <strong>{results.length ? `${results.length} resultado(s)` : 'Nenhum resultado encontrado'}</strong>
+            <strong>{results.length ? `${results.length} resultado(s)` : 'Nenhum resultado encontrado.'}</strong>
           </div>
           <div className="result-list">
             {results.map((result, index) => (
@@ -537,7 +498,7 @@ function SearchPanel({
                 <small>{renderHighlighted(result.snippet, query)}</small>
               </button>
             ))}
-            {!results.length && <p className="search-empty">Nenhum resultado encontrado</p>}
+            {!results.length && <p className="search-empty">Nenhum resultado encontrado.</p>}
           </div>
         </section>
       )}
@@ -688,20 +649,8 @@ function ExamReviewPanel({
   const reveal = useScrollReveal<HTMLElement>();
   const focusSection = pendingSections[0] ?? completedSections[completedSections.length - 1];
   const pendingToday = Math.min(3, pendingSections.length);
-  const goals = [
-    {
-      label: 'Revisar os 3 próximos blocos pendentes',
-      done: pendingSections.length === 0 || completedCount >= Math.min(3, totalCount),
-    },
-    {
-      label: 'Marcar conceitos dominados sem pular fundamento',
-      done: progress >= 40,
-    },
-    {
-      label: 'Fechar a sessão com relatório ou nota de campo',
-      done: progress >= 75,
-    },
-  ];
+  const reviewGoals = (focusSection?.goals.length ? focusSection.goals : studyModules[0]?.goals ?? []).slice(0, 3);
+  const focusBlocks = focusSection?.blocks.slice(0, 3) ?? [];
 
   if (!open) return null;
 
@@ -743,15 +692,21 @@ function ExamReviewPanel({
         <div className="review-checklist">
           <div className="panel-title">
             <div>
-              <p className="kicker">Meta diária</p>
-              <h3>{pendingToday ? `${pendingToday} blocos críticos` : 'Revisão fechada'}</h3>
+          <p className="kicker">Meta diária</p>
+              <h3>{pendingToday ? `${pendingToday} módulos em foco` : 'Revisão fechada'}</h3>
             </div>
             <ListChecks size={18} />
           </div>
-          {goals.map((goal) => (
-            <span key={goal.label} className={goal.done ? 'is-done' : ''}>
+          {reviewGoals.map((goal, index) => (
+            <span key={goal} className={progress >= (index + 1) * 30 ? 'is-done' : ''}>
               <Check size={15} />
-              {goal.label}
+              {goal}
+            </span>
+          ))}
+          {focusBlocks.map((block) => (
+            <span key={block.id}>
+              <Check size={15} />
+              {block.title}
             </span>
           ))}
         </div>
@@ -794,32 +749,12 @@ function StoryChapters({
   onSelectSection: (id: string, scrollTarget?: string) => void;
 }) {
   const reveal = useScrollReveal<HTMLElement>();
-  const chapters = [
-    {
-      title: 'Fundamentos',
-      text: 'Comece pelo sistema, rede e linguagem técnica. Fundamento antes da execução.',
-      section: moduleSections[0],
-      icon: BookOpen,
-    },
-    {
-      title: 'Rede viva',
-      text: 'Entenda rádio, superfície, sinal, canal e a arquitetura que sustenta o laboratório.',
-      section: moduleSections[2],
-      icon: Wifi,
-    },
-    {
-      title: 'Análise',
-      text: 'Ferramentas entram como raciocínio, evidência e método, não como atalhos soltos.',
-      section: moduleSections[3],
-      icon: Activity,
-    },
-    {
-      title: 'Defesa',
-      text: 'Cada descoberta precisa terminar em mitigação, documentação e melhoria real.',
-      section: moduleSections[6],
-      icon: ShieldCheck,
-    },
-  ].filter((chapter) => chapter.section);
+  const chapters = moduleSections.slice(0, 4).map((section) => ({
+    title: section.title,
+    text: section.summary,
+    section,
+    icon: iconForSection(section),
+  }));
 
   return (
     <section
@@ -838,13 +773,23 @@ function StoryChapters({
           >
             <span>0{index + 1}</span>
             <Icon size={22} />
-            <strong>{chapter.title}</strong>
+            <strong>{compactTitle(chapter.title)}</strong>
             <p>{chapter.text}</p>
           </button>
         );
       })}
     </section>
   );
+}
+
+function iconForSection(section: Section) {
+  const text = normalize(`${section.title} ${section.summary}`);
+  if (text.includes('wireless') || text.includes('wi-fi')) return Wifi;
+  if (text.includes('rede') || text.includes('tcp')) return Network;
+  if (text.includes('relatorio')) return FileText;
+  if (text.includes('defesa') || text.includes('escopo')) return ShieldCheck;
+  if (text.includes('web') || text.includes('metodologia')) return Activity;
+  return BookOpen;
 }
 
 function ModuleJourneyMap({
@@ -917,7 +862,7 @@ function ModuleNode({
       onClick={onSelect}
       aria-current={isActive ? 'step' : undefined}
     >
-      <span className="module-index">{String(index + 1).padStart(2, '0')}</span>
+      <span className="module-index">{String(section.order).padStart(2, '0')}</span>
       <span className="module-copy">
         <small>{stateLabel}</small>
         <strong>{compactTitle(section.title)}</strong>
@@ -954,7 +899,7 @@ function StudyReader({
       <div className="reader-toolbar">
         <div>
           <p className="kicker">Modo estudo ativo</p>
-          <h2>{activeSection.title}</h2>
+          <h2>{renderHighlighted(activeSection.title, query)}</h2>
         </div>
         <div className="reader-controls">
           <label>
@@ -988,7 +933,7 @@ function StudyReader({
         >
           {sections.map((section) => (
             <option key={`${section.id}-${section.index}`} value={section.id}>
-              {String(section.index).padStart(2, '0')} - {compactTitle(section.title)}
+              {String(section.order).padStart(2, '0')} - {compactTitle(section.title)}
             </option>
           ))}
         </select>
@@ -997,7 +942,13 @@ function StudyReader({
 
       <div className="reader-lead">
         <span>Nota de campo</span>
-        <p>{sectionDigest(activeSection)}</p>
+        <p>{renderHighlighted(activeSection.summary, query)}</p>
+        <small>{renderHighlighted(activeSection.objective, query)}</small>
+        <div className="reader-tags">
+          {activeSection.sources.map((source) => (
+            <em key={source}>{renderHighlighted(source, query)}</em>
+          ))}
+        </div>
       </div>
 
       <div className="content-stream">
@@ -1307,27 +1258,29 @@ function LayerStack() {
 }
 
 function IntegrityPanel() {
+  const sourceCount = new Set(studyModules.flatMap((module) => module.sources)).size;
+
   return (
     <section className="integrity-panel">
       <div className="panel-title">
         <div>
           <p className="kicker">Integridade</p>
-          <h3>Conteúdo preservado</h3>
+          <h3>Fonte única ativa</h3>
         </div>
         <ShieldCheck size={18} />
       </div>
       <dl>
         <div>
-          <dt>Parágrafos</dt>
-          <dd>{data.metadata.paragraphCount}</dd>
+          <dt>Módulos</dt>
+          <dd>{studyModules.length}</dd>
         </div>
         <div>
-          <dt>Tabelas</dt>
-          <dd>{data.metadata.tableCount}</dd>
+          <dt>Blocos</dt>
+          <dd>{totalBlockCount}</dd>
         </div>
         <div>
-          <dt>Hash</dt>
-          <dd>{data.metadata.contentHash.slice(0, 10)}</dd>
+          <dt>Fontes</dt>
+          <dd>{sourceCount}</dd>
         </div>
       </dl>
       <a href="/material_estudo_premium_wireless_seguro.docx">
@@ -1348,6 +1301,8 @@ function ReportSection({
   progress: number;
 }) {
   const reveal = useScrollReveal<HTMLElement>();
+  const reportSources = Array.from(new Set(studyModules.flatMap((module) => module.sources))).slice(0, 6);
+  const reportGoals = reportSection.goals.slice(0, 3);
 
   return (
     <section
@@ -1358,10 +1313,15 @@ function ReportSection({
       <div>
         <p className="kicker">Relatório de aprendizado</p>
         <h2>Transforme estudo em entrega clara.</h2>
-        <p>
-          O fechamento da jornada conecta hipótese, evidência, impacto e correção. O relatório final permanece
-          preservado no material e pode ser aberto a qualquer momento.
-        </p>
+        <p>{reportSection.summary}</p>
+        <div className="report-data-list">
+          {reportGoals.map((goal) => (
+            <span key={goal}>{goal}</span>
+          ))}
+          {reportSources.map((source) => (
+            <span key={source}>{source}</span>
+          ))}
+        </div>
       </div>
       <div className="report-actions">
         <MetricBlock label="Progresso" value={`${progress}%`} />
@@ -1486,87 +1446,56 @@ function SignalCanvas({
 }
 
 function ContentBlockView({ block, query }: { block: ContentBlock; query: string }) {
-  if (block.type === 'table') {
-    if (block.rows.length === 1 && block.rows[0].length === 1) {
-      return (
-        <FieldNote id={block.id} icon={<Sparkles size={18} />}>
-          {renderHighlighted(block.rows[0][0], query)}
-        </FieldNote>
-      );
-    }
-
-    const [head, ...body] = block.rows;
-    return (
-      <div className="table-wrap" id={block.id}>
-        <table>
-          <thead>
-            <tr>
-              {head.map((cell, index) => (
-                <th key={`${block.id}-h-${index}`}>{renderHighlighted(cell, query)}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {body.map((row, rowIndex) => (
-              <tr key={`${block.id}-r-${rowIndex}`}>
-                {row.map((cell, cellIndex) => (
-                  <td key={`${block.id}-c-${rowIndex}-${cellIndex}`}>{renderHighlighted(cell, query)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  if (block.type === 'heading1') {
-    return (
-      <div className="reader-heading" id={block.id}>
-        <Flame size={22} />
-        <h3>{renderHighlighted(block.text, query)}</h3>
-      </div>
-    );
-  }
-
-  if (block.type === 'heading2' || block.type === 'heading') {
-    return (
-      <h4 className="reader-subheading" id={block.id}>
-        {renderHighlighted(block.text, query)}
-      </h4>
-    );
-  }
-
-  if (block.type === 'list') {
-    return (
-      <div className="list-block" id={block.id}>
-        <Check size={16} />
-        <p>{renderHighlighted(block.text, query)}</p>
-      </div>
-    );
-  }
-
-  if (looksLikeCode(block.text)) {
-    return (
-      <pre className="code-block" id={block.id}>
-        <code>{block.text}</code>
-      </pre>
-    );
-  }
-
-  if (isFieldNote(block.text)) {
-    return (
-      <FieldNote id={block.id} icon={<ShieldCheck size={18} />}>
-        {renderHighlighted(block.text, query)}
-      </FieldNote>
-    );
-  }
-
   return (
-    <p className="paragraph-block" id={block.id}>
-      {renderHighlighted(block.text, query)}
-    </p>
+    <article className={`study-block study-block-${block.type}`} id={block.id}>
+      <div className="reader-heading">
+        {blockIcon(block.type)}
+        <div>
+          <span>{blockTypeLabel(block.type)}</span>
+          <h3>{renderHighlighted(block.title, query)}</h3>
+        </div>
+      </div>
+
+      {block.content && <p className="paragraph-block">{renderHighlighted(block.content, query)}</p>}
+
+      {block.items?.length ? (
+        <div className="checklist-items">
+          {block.items.map((item, index) => (
+            <div className="list-block" key={`${block.id}-item-${index}`}>
+              <Check size={16} />
+              <p>{renderHighlighted(item, query)}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
+}
+
+function blockIcon(type: ContentBlock['type']) {
+  if (type === 'checklist' || type === 'revisao') return <ListChecks size={22} />;
+  if (type === 'relatorio') return <FileText size={22} />;
+  if (type === 'fonte') return <BookOpen size={22} />;
+  if (type === 'alerta') return <ShieldCheck size={22} />;
+  if (type === 'meta-diaria') return <BadgeCheck size={22} />;
+  return <Flame size={22} />;
+}
+
+function blockTypeLabel(type: ContentBlock['type']) {
+  const labels: Record<ContentBlock['type'], string> = {
+    conceito: 'Conceito',
+    'nota-de-campo': 'Nota de campo',
+    checklist: 'Checklist',
+    comparacao: 'Comparação',
+    metodologia: 'Metodologia',
+    relatorio: 'Relatório',
+    revisao: 'Revisão',
+    'meta-diaria': 'Meta diária',
+    fonte: 'Fonte conceitual',
+    alerta: 'Alerta técnico',
+    resumo: 'Resumo',
+  };
+  return labels[type];
 }
 
 function FieldNote({
@@ -1589,156 +1518,20 @@ function FieldNote({
   );
 }
 
-function normalizeMaterialData(input: RawMaterialData): MaterialData {
-  const blocks =
-    Array.isArray(input.blocks) && input.blocks.length
-      ? input.blocks
-      : buildBlocksFromCompleteContent(input.conteudo_completo ?? '');
-  const tableCount = blocks.filter((block) => block.type === 'table').length;
-  const paragraphCount = blocks.filter((block) => block.type !== 'table' && !block.type.startsWith('heading')).length;
-
-  return {
-    metadata: {
-      title: input.metadata.title ?? 'MATERIAL DE ESTUDO PREMIUM',
-      subtitle: input.metadata.subtitle ?? '',
-      description: input.metadata.description ?? '',
-      sourceFile: input.metadata.sourceFile ?? 'material_estudo_premium_wireless_seguro.docx',
-      paragraphCount: input.metadata.paragraphCount ?? paragraphCount,
-      tableCount: input.metadata.tableCount ?? tableCount,
-      blockCount: input.metadata.blockCount ?? blocks.length,
-      contentHash: input.metadata.contentHash ?? '',
-      generatedFrom: input.metadata.generatedFrom,
-    },
-    blocks,
-  };
-}
-
-function buildBlocksFromCompleteContent(content: string): ContentBlock[] {
-  const lines = content.replace(/\r\n/g, '\n').split('\n');
-  const blocks: ContentBlock[] = [];
-  let index = 0;
-  let blockIndex = 1;
-
-  const nextId = () => `conteudo-completo-${blockIndex++}`;
-
-  while (index < lines.length) {
-    const line = lines[index];
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      index += 1;
-      continue;
-    }
-
-    if (isMarkdownTableStart(lines, index)) {
-      const tableLines: string[] = [];
-      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
-        tableLines.push(lines[index]);
-        index += 1;
-      }
-      const rows = tableLines
-        .filter((tableLine) => !/^\s*\|?\s*:?-{3,}/.test(tableLine))
-        .map((tableLine) =>
-          tableLine
-            .trim()
-            .replace(/^\|/, '')
-            .replace(/\|$/, '')
-            .split('|')
-            .map((cell) => cell.trim()),
-        );
-      if (rows.length) {
-        blocks.push({ id: nextId(), type: 'table', rows });
-      }
-      continue;
-    }
-
-    const heading = parseContentHeading(trimmed);
-    if (heading) {
-      blocks.push({ id: nextId(), type: heading.type, style: null, text: heading.text });
-      index += 1;
-      continue;
-    }
-
-    blocks.push({
-      id: nextId(),
-      type: /^[-*]\s+|\d+\.\s+/.test(trimmed) ? 'list' : 'paragraph',
-      style: null,
-      text: trimmed,
-    });
-    index += 1;
-  }
-
-  return blocks.length
-    ? blocks
-    : [
-        {
-          id: 'conteudo-completo-vazio',
-          type: 'paragraph',
-          style: null,
-          text: 'Conteúdo indisponível no material carregado.',
-        },
-      ];
-}
-
-function isMarkdownTableStart(lines: string[], index: number) {
-  const current = lines[index]?.trim() ?? '';
-  const next = lines[index + 1]?.trim() ?? '';
-  return current.startsWith('|') && current.includes('|') && /^\|?\s*:?-{3,}/.test(next);
-}
-
-function parseContentHeading(line: string): { type: 'heading1' | 'heading2' | 'heading'; text: string } | null {
-  const markdownHeading = /^(#{1,6})\s+(.+)$/.exec(line);
-  if (markdownHeading) {
-    const level = markdownHeading[1].length;
-    const text = markdownHeading[2].trim();
-    return {
-      type: level === 1 || isModuleTitle(text) ? 'heading1' : level === 2 ? 'heading2' : 'heading',
-      text,
-    };
-  }
-
-  if (isModuleTitle(line)) {
-    return { type: 'heading1', text: line };
-  }
-
-  const normalized = normalize(line);
-  if (
-    ['material de estudo premium - seguranca wireless', 'regras de ouro', 'mapa de estudo'].includes(normalized)
-  ) {
-    return { type: blocksHeadingType(line), text: line };
-  }
-
-  return null;
-}
-
-function blocksHeadingType(line: string): 'heading1' | 'heading2' {
-  return normalize(line).startsWith('material de estudo') ? 'heading1' : 'heading2';
-}
-
-function isModuleTitle(text: string) {
-  return /^modulo\s+\d+/i.test(normalize(text));
-}
-
-function buildSections(blocks: ContentBlock[]): Section[] {
-  const sections: Section[] = [];
-  let current: Section = { id: 'inicio', title: 'Abertura', blocks: [], index: 1 };
-
-  blocks.forEach((block) => {
-    if (block.type === 'heading1') {
-      if (current.blocks.length) sections.push(current);
-      current = {
-        id: block.id,
-        title: block.text,
-        blocks: [block],
-        index: sections.length + 1,
-      };
-      return;
-    }
-    current.blocks.push(block);
-  });
-
-  if (current.blocks.length) sections.push(current);
-  return sections.map((section, index) => ({ ...section, index: index + 1 }));
+function buildSections(modules: StudyModule[]): Section[] {
+  return [...modules]
+    .sort((a, b) => a.order - b.order)
+    .map((module, index) => ({
+      id: module.id,
+      order: module.order,
+      title: module.title,
+      summary: module.summary,
+      objective: module.objective,
+      sources: module.sources,
+      goals: module.goals,
+      blocks: module.blocks,
+      index: index + 1,
+    }));
 }
 
 function useScrollReveal<T extends HTMLElement>() {
@@ -1807,38 +1600,65 @@ function clearEntrySeen() {
 
 function buildSearchResults(sections: Section[], term: string): SearchResult[] {
   const normalizedTerm = normalize(term);
-  const results: SearchResult[] = [];
+  const results: Array<SearchResult & { score: number }> = [];
 
   sections.forEach((section) => {
-    if (normalize(section.title).includes(normalizedTerm)) {
+    const moduleFields = [
+      { value: section.title, score: 60 },
+      { value: section.summary, score: 40 },
+      { value: section.objective, score: 32 },
+      { value: section.goals.join(' '), score: 22 },
+      { value: section.sources.join(' '), score: 12 },
+    ];
+    const moduleText = moduleFields.map((field) => field.value).join(' ');
+    const moduleScore = moduleFields.reduce(
+      (score, field) => (normalize(field.value).includes(normalizedTerm) ? Math.max(score, field.score) : score),
+      0,
+    );
+
+    if (moduleScore) {
       results.push({
         id: `${section.id}-title`,
         section,
         title: compactTitle(section.title),
-        snippet: sectionDigest(section),
-        matchLabel: 'Título',
+        snippet: searchSnippet(moduleText, term),
+        matchLabel: 'Módulo',
+        score: moduleScore,
       });
     }
 
     section.blocks.forEach((block) => {
       const text = blockText(block);
-      if (!normalize(text).includes(normalizedTerm)) return;
+      const blockScore = blockSearchScore(block, normalizedTerm);
+      if (!blockScore) return;
       results.push({
         id: block.id,
         section,
         block,
         title: compactTitle(section.title),
         snippet: searchSnippet(text, term),
-        matchLabel: block.type === 'table' ? 'Tabela' : block.type.startsWith('heading') ? 'Bloco' : 'Conteúdo',
+        matchLabel: blockTypeLabel(block.type),
+        score: blockScore,
       });
     });
   });
 
-  return results.slice(0, 12);
+  return results
+    .sort((a, b) => b.score - a.score || a.section.order - b.section.order)
+    .slice(0, 12)
+    .map(({ score, ...result }) => result);
 }
 
 function blockText(block: ContentBlock) {
-  return block.type === 'table' ? block.rows.flat().join(' | ') : block.text;
+  return [block.title, block.type, block.content, ...(block.items ?? [])].filter(Boolean).join(' ');
+}
+
+function blockSearchScore(block: ContentBlock, normalizedTerm: string) {
+  if (normalize(block.title).includes(normalizedTerm)) return 48;
+  if (normalize(block.content ?? '').includes(normalizedTerm)) return 24;
+  if (normalize((block.items ?? []).join(' ')).includes(normalizedTerm)) return 20;
+  if (normalize(block.type).includes(normalizedTerm)) return 10;
+  return 0;
 }
 
 function searchSnippet(text: string, term: string) {
@@ -1860,14 +1680,17 @@ function normalize(value: string) {
 }
 
 function compactTitle(title: string) {
-  return title.replace(/^MÓDULO\s+(\d+):\s*/i, '$1. ').replace(/^APÊNDICE\s+([A-Z]):\s*/i, 'Ap. $1 - ');
+  return title
+    .replace(/^MÓDULO\s+(\d+):\s*/i, '')
+    .replace(/^APÊNDICE\s+([A-Z]):\s*/i, '')
+    .replace(/^\s*\d+\s*[\.\-)]\s*/, '')
+    .trim();
 }
 
 function sectionDigest(section: Section) {
-  const source = section.blocks.find((block) => block.type !== 'heading1');
-  if (!source) return `${section.blocks.length} blocos de estudo`;
-  const text = source.type === 'table' ? source.rows.flat().join(' ') : source.text;
-  return text.replace(/\s+/g, ' ').slice(0, 132);
+  return (section.summary || section.objective || `${section.blocks.length} blocos de estudo`)
+    .replace(/\s+/g, ' ')
+    .slice(0, 168);
 }
 
 function renderHighlighted(text: string, query: string) {
@@ -1926,17 +1749,6 @@ function normalizedWithMap(value: string) {
 
   map.push(value.length);
   return { value: normalizedValue, map };
-}
-
-function looksLikeCode(text: string) {
-  return (
-    text.includes('\n') &&
-    (/^\s*(#|\$|sudo|air|hashcat|iw|ip|ping|grep|chmod|mkdir|cd)\b/im.test(text) || text.includes('```'))
-  );
-}
-
-function isFieldNote(text: string) {
-  return /escopo|autorizad|defesa|relat[óo]rio|evid[êe]ncia|mitiga|regra|aten[çc][ãa]o/i.test(text) && text.length < 420;
 }
 
 function scrollToSection(id: string) {

