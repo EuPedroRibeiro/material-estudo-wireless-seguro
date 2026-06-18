@@ -120,7 +120,7 @@ async function detectWebGpu() {
     const info = adapter.requestAdapterInfo ? await adapter.requestAdapterInfo() : adapter.info ?? {};
     return {
       available: true,
-      version: 'WebGPU bridge (DirectX-class)',
+      version: 'Ponte WebGPU (classe DirectX)',
       gpuName: info.description || info.device || info.architecture || 'GPU WebGPU',
       driver: [info.vendor, info.architecture].filter(Boolean).join(' | '),
       error: '',

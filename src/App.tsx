@@ -12,7 +12,6 @@ import {
   Layers3,
   ListChecks,
   Menu,
-  MonitorSmartphone,
   Network,
   Play,
   Radio,
@@ -23,7 +22,6 @@ import {
   Terminal,
   Wifi,
   X,
-  Zap,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import material from './data/material.json';
@@ -72,10 +70,18 @@ type MaterialData = {
 
 type LabMode = (typeof labModes)[number]['key'];
 
+type SearchResult = {
+  id: string;
+  section: Section;
+  block?: ContentBlock;
+  title: string;
+  snippet: string;
+  matchLabel: string;
+};
+
 const data = material as MaterialData;
 const storageKey = 'wireless-study-progress-v1';
 const entrySeenKey = 'wireless-lab-drive-entry-seen';
-const productName = 'WIRELESS LAB DRIVE';
 
 const navItems = [
   { id: 'entry', label: 'Início' },
@@ -83,7 +89,6 @@ const navItems = [
   { id: 'study', label: 'Estudo' },
   { id: 'lab', label: 'Laboratório' },
   { id: 'report', label: 'Relatório' },
-  { id: 'progress', label: 'Progresso' },
 ];
 
 const commandBank = [
@@ -156,7 +161,7 @@ const osiLayers = [
 
 const labModes = [
   { key: 'map', label: 'Mapa', icon: Network },
-  { key: 'handshake', label: 'Handshake', icon: Radio },
+  { key: 'handshake', label: 'Troca', icon: Radio },
   { key: 'defense', label: 'Defesa', icon: ShieldCheck },
 ] as const;
 
@@ -199,21 +204,11 @@ function App() {
     journeySections.findIndex((section) => section.id === activeSection.id),
   );
 
-  const blockToSection = useMemo(() => {
-    const map = new Map<string, Section>();
-    sections.forEach((section) => section.blocks.forEach((block) => map.set(block.id, section)));
-    return map;
-  }, [sections]);
-
   const searchResults = useMemo(() => {
     const term = query.trim();
     if (!term) return [];
-    return data.blocks
-      .filter((block) => blockContains(block, term))
-      .map((block) => ({ block, section: blockToSection.get(block.id) }))
-      .filter((entry): entry is { block: ContentBlock; section: Section } => Boolean(entry.section))
-      .slice(0, 10);
-  }, [blockToSection, query]);
+    return buildSearchResults(sections, term);
+  }, [query, sections]);
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify([...completed]));
@@ -228,7 +223,7 @@ function App() {
   function enterLab() {
     saveEntrySeen();
     setEntrySeen(true);
-    chooseSection(nextSection.id);
+    window.requestAnimationFrame(() => scrollToSection('hero'));
   }
 
   function replayEntry() {
@@ -258,11 +253,12 @@ function App() {
     });
   }
 
-  function jumpToResult(block: ContentBlock, section: Section) {
-    setActiveSectionId(section.id);
+  function jumpToResult(result: SearchResult) {
+    setActiveSectionId(result.section.id);
     setMobileMenuOpen(false);
     window.setTimeout(() => {
-      document.getElementById(block.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const target = result.block ? document.getElementById(result.block.id) : document.getElementById('study');
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 80);
   }
 
@@ -274,19 +270,17 @@ function App() {
       <StudyNavigation
         query={query}
         onQueryChange={setQuery}
-        progress={progress}
         mobileOpen={mobileMenuOpen}
         onMobileOpenChange={setMobileMenuOpen}
         onFocusToggle={() => setFocusMode((value) => !value)}
         onHomeSelect={handleHomeSelect}
         onReplayEntry={replayEntry}
         onReviewOpen={openReviewMode}
+        searchResults={searchResults}
+        onResultSelect={jumpToResult}
+        onQueryClear={() => setQuery('')}
         focusMode={focusMode}
       />
-
-      {query.trim() && (
-        <SearchResults results={searchResults} onResultSelect={jumpToResult} />
-      )}
 
       {!entrySeen && <LoadingGate progress={progress} nextSection={nextSection} onEnter={enterLab} />}
 
@@ -296,16 +290,6 @@ function App() {
         blockCount={data.metadata.blockCount}
         labMode={labMode}
         onStart={() => chooseSection(nextSection.id)}
-      />
-
-      <ProgressRail
-        progress={progress}
-        activeSection={activeSection}
-        nextSection={nextSection}
-        completedCount={completedCount}
-        totalCount={importantSections.length}
-        onNext={() => chooseSection(nextSection.id)}
-        onReset={() => setCompleted(new Set())}
       />
 
       <ExamReviewPanel
@@ -352,128 +336,195 @@ function App() {
 function StudyNavigation({
   query,
   onQueryChange,
-  progress,
   mobileOpen,
   onMobileOpenChange,
   onFocusToggle,
   onHomeSelect,
   onReplayEntry,
   onReviewOpen,
+  searchResults,
+  onResultSelect,
+  onQueryClear,
   focusMode,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
-  progress: number;
   mobileOpen: boolean;
   onMobileOpenChange: (value: boolean) => void;
   onFocusToggle: () => void;
   onHomeSelect: () => void;
   onReplayEntry: () => void;
   onReviewOpen: () => void;
+  searchResults: SearchResult[];
+  onResultSelect: (result: SearchResult) => void;
+  onQueryClear: () => void;
   focusMode: boolean;
 }) {
   return (
     <header className="study-nav">
-      <button
-        className="nav-menu-button"
-        type="button"
-        onClick={() => onMobileOpenChange(true)}
-        aria-label="Abrir navegação"
-      >
-        <Menu size={18} />
-      </button>
-      <button className="brand-lockup" type="button" onClick={onHomeSelect}>
-        <span className="brand-symbol">
-          <Wifi size={20} />
-        </span>
-        <span>
-          <small>Academia Wireless</small>
-          <strong>{productName}</strong>
-        </span>
-      </button>
-
-      <nav className={`nav-links ${mobileOpen ? 'is-open' : ''}`} aria-label="Navegação principal">
-        <button className="nav-close" type="button" onClick={() => onMobileOpenChange(false)} aria-label="Fechar menu">
-          <X size={18} />
+      <div className="nav-pill">
+        <button
+          className="nav-menu-button"
+          type="button"
+          onClick={() => onMobileOpenChange(true)}
+          aria-label="Abrir navegação"
+        >
+          <Menu size={18} />
         </button>
-        {navItems.map((item) => (
+        <button className="brand-lockup" type="button" onClick={onHomeSelect} aria-label="Ir para o início">
+          <span className="brand-symbol" aria-hidden="true">
+            <HackerMark />
+          </span>
+        </button>
+
+        <nav className={`nav-links ${mobileOpen ? 'is-open' : ''}`} aria-label="Navegação principal">
           <button
-            key={item.id}
+            className="nav-close"
+            type="button"
+            onClick={() => onMobileOpenChange(false)}
+            aria-label="Fechar menu"
+          >
+            <X size={18} />
+          </button>
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                if (item.id === 'entry') {
+                  onHomeSelect();
+                  return;
+                }
+                onMobileOpenChange(false);
+                scrollToSection(item.id);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+          <button
             type="button"
             onClick={() => {
-              if (item.id === 'entry') {
-                onHomeSelect();
-                return;
-              }
               onMobileOpenChange(false);
-              scrollToSection(item.id);
+              onReviewOpen();
             }}
           >
-            {item.label}
+            Revisão
           </button>
-        ))}
-      </nav>
+        </nav>
 
-      <label className="global-search">
-        <Search size={17} />
-        <input
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Buscar conceito, módulo ou evidência"
-          aria-label="Buscar no material"
-        />
-      </label>
-
-      <div className="nav-actions">
-        <span className="nav-progress" aria-label={`Progresso ${progress}%`}>
-          <i style={{ width: `${progress}%` }} />
-        </span>
-        <button className="nav-text-button" type="button" onClick={onReviewOpen}>
-          <ListChecks size={16} />
-          <span>Revisão</span>
-        </button>
-        <button className="nav-text-button is-quiet" type="button" onClick={onReplayEntry}>
-          <RotateCcw size={15} />
-          <span>Abertura</span>
-        </button>
-        <button
-          className={`nav-icon ${focusMode ? 'is-active' : ''}`}
-          type="button"
-          onClick={onFocusToggle}
-          title="Modo foco"
-        >
-          <Eye size={17} />
-        </button>
-        <a className="nav-icon" href="/material_estudo_premium_wireless_seguro.docx" title="Baixar DOCX original">
-          <Download size={17} />
-        </a>
+        <div className="nav-right">
+          <SearchPanel
+            query={query}
+            results={searchResults}
+            onQueryChange={onQueryChange}
+            onResultSelect={onResultSelect}
+            onQueryClear={onQueryClear}
+          />
+          <button className="nav-text-button is-quiet" type="button" onClick={onReplayEntry}>
+            <RotateCcw size={15} />
+            <span>Abertura</span>
+          </button>
+          <button
+            className={`nav-icon ${focusMode ? 'is-active' : ''}`}
+            type="button"
+            onClick={onFocusToggle}
+            title="Modo foco"
+            aria-label="Alternar modo foco"
+          >
+            <Eye size={17} />
+          </button>
+          <a
+            className="nav-icon"
+            href="/material_estudo_premium_wireless_seguro.docx"
+            title="Baixar DOCX original"
+            aria-label="Baixar DOCX original"
+          >
+            <Download size={17} />
+          </a>
+        </div>
       </div>
     </header>
   );
 }
 
-function SearchResults({
+function SearchPanel({
+  query,
   results,
+  onQueryChange,
   onResultSelect,
+  onQueryClear,
 }: {
-  results: Array<{ block: ContentBlock; section: Section }>;
-  onResultSelect: (block: ContentBlock, section: Section) => void;
+  query: string;
+  results: SearchResult[];
+  onQueryChange: (value: string) => void;
+  onResultSelect: (result: SearchResult) => void;
+  onQueryClear: () => void;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasQuery = query.trim().length > 0;
+  const showResults = hasQuery && isOpen;
+
   return (
-    <section className="search-results" aria-label="Resultados de busca">
-      <div>
-        <p className="kicker">Busca ativa</p>
-        <strong>{results.length ? `${results.length} achados relevantes` : 'Nada encontrado'}</strong>
-      </div>
-      <div className="result-list">
-        {results.map(({ block, section }) => (
-          <button key={block.id} type="button" onClick={() => onResultSelect(block, section)}>
-            <span>{compactTitle(section.title)}</span>
-            <small>{blockPreview(block)}</small>
+    <div className="search-shell">
+      <label className="global-search">
+        <Search size={17} />
+        <input
+          value={query}
+          onChange={(event) => {
+            setIsOpen(true);
+            onQueryChange(event.target.value);
+          }}
+          onFocus={() => {
+            if (hasQuery) setIsOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setIsOpen(false);
+          }}
+          placeholder="Buscar no material"
+          aria-label="Buscar no material"
+        />
+        {hasQuery && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              onQueryClear();
+            }}
+            aria-label="Limpar busca"
+          >
+            <X size={14} />
           </button>
-        ))}
-      </div>
-    </section>
+        )}
+      </label>
+
+      {showResults && (
+        <section className="search-results" aria-label="Resultados de busca">
+          <div className="search-results-head">
+            <p className="kicker">Busca</p>
+            <strong>{results.length ? `${results.length} resultado(s)` : 'Nenhum resultado encontrado'}</strong>
+          </div>
+          <div className="result-list">
+            {results.map((result) => (
+              <button
+                className="search-result"
+                key={result.id}
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onResultSelect(result);
+                }}
+              >
+                <span>{result.matchLabel}</span>
+                <strong>{result.title}</strong>
+                <small>{renderHighlighted(result.snippet, query)}</small>
+              </button>
+            ))}
+            {!results.length && <p className="search-empty">Nenhum resultado encontrado</p>}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -496,22 +547,22 @@ function LoadingGate({
       aria-label="Entrada do laboratório"
     >
       <div className="gate-frame">
-        <p className="kicker">Authorized lab mode</p>
-        <h1>Load Wireless Lab</h1>
+        <p className="kicker">Modo laboratório autorizado</p>
+        <h1>Iniciar laboratório</h1>
         <p>
           Inicializando uma jornada de estudo técnico: fundamentos, rede viva, análise, defesa e relatório final em
           ambiente controlado.
         </p>
         <div className="gate-console" aria-label="Status de inicialização">
-          <span>study-os / ready</span>
-          <span>scope / authorized</span>
-          <span>progress / {progress}%</span>
+          <span>estudo / pronto</span>
+          <span>escopo autorizado</span>
+          <span>progresso / {progress}%</span>
         </div>
       </div>
-      <button className="enter-drive" type="button" onClick={onEnter}>
+      <button className="enter-drive" type="button" onClick={onEnter} aria-label="Entrar no laboratório">
         <Play size={18} />
-        <span>Enter the lab</span>
-        <small>{compactTitle(nextSection.title)}</small>
+        <span>Entrar no laboratório</span>
+        <small aria-hidden="true">{compactTitle(nextSection.title)}</small>
       </button>
     </section>
   );
@@ -559,15 +610,15 @@ function HeroExperience({
 
       <div className="hero-visual" aria-label="Rede simulada">
         <div className="hero-visual-head">
-          <span>Wireless lab drive</span>
-          <strong>Authorized only</strong>
+          <span>Laboratório wireless</span>
+          <strong>Acesso autorizado</strong>
         </div>
         <SignalCanvas mode={labMode} config={heroRendererConfig} />
         <div className="hero-metrics" id="progress">
           <MetricBlock label="Módulos" value={moduleCount} />
           <MetricBlock label="Blocos" value={blockCount} />
           <MetricBlock label="Progresso" value={`${progress}%`} />
-          <MetricBlock label="Modo" value="Lab" />
+          <MetricBlock label="Modo" value="Autorizado" />
         </div>
       </div>
     </section>
@@ -583,39 +634,18 @@ function MetricBlock({ label, value }: { label: string; value: string | number }
   );
 }
 
-function ProgressRail({
-  progress,
-  activeSection,
-  nextSection,
-  completedCount,
-  totalCount,
-  onNext,
-  onReset,
-}: {
-  progress: number;
-  activeSection: Section;
-  nextSection: Section;
-  completedCount: number;
-  totalCount: number;
-  onNext: () => void;
-  onReset: () => void;
-}) {
+function HackerMark() {
   return (
-    <aside className="progress-rail" aria-label="Progresso do estudo">
-      <span className="rail-line" style={{ height: `${progress}%` }} />
-      <strong>{progress}%</strong>
-      <small>
-        {completedCount}/{totalCount}
-      </small>
-      <button type="button" onClick={onNext} title="Ir para próximo bloco">
-        <Zap size={15} />
-      </button>
-      <button type="button" onClick={onReset} title="Resetar progresso">
-        <RotateCcw size={15} />
-      </button>
-      <p>{compactTitle(activeSection.title)}</p>
-      <em>Próximo: {compactTitle(nextSection.title)}</em>
-    </aside>
+    <svg viewBox="0 0 48 48" role="img" aria-label="Ícone do laboratório">
+      <circle cx="24" cy="24" r="22" fill="#050505" />
+      <path
+        d="M14 21c1.8-7 6.3-11 10-11s8.2 4 10 11l-2.2 13c-.3 1.8-1.8 3-3.6 3h-8.4c-1.8 0-3.3-1.2-3.6-3L14 21Z"
+        fill="#f5f5f0"
+      />
+      <path d="M17 22h14l-3.4-7.6H20.4L17 22Z" fill="#050505" />
+      <path d="M17.5 27.5h13M20 32h8" stroke="#050505" strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M34 12l2.8 2.8M36.8 12L34 14.8" stroke="#ff1f2d" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -974,7 +1004,7 @@ function LabPanel({ mode, onModeChange }: { mode: LabMode; onModeChange: (mode: 
   return (
     <aside ref={reveal.ref} className={`lab-panel reveal-on-scroll ${reveal.isVisible ? 'is-visible' : ''}`} id="lab">
       <div className="lab-panel-head">
-        <p className="kicker">Lab Panel</p>
+        <p className="kicker">Painel de laboratório</p>
         <h2>Rede viva</h2>
         <span>Ambiente controlado</span>
       </div>
@@ -1035,7 +1065,7 @@ function RendererControls({
     <section className="renderer-console" aria-label="Diagnóstico gráfico">
       <div className="renderer-config">
         <label>
-          <span>Renderer</span>
+          <span>Renderizador</span>
           <select
             value={config.renderer}
             onChange={(event) => onChange({ renderer: event.target.value as RendererMode })}
@@ -1067,7 +1097,7 @@ function RendererControls({
               checked={config.vsync}
               onChange={(event) => onChange({ vsync: event.target.checked })}
             />
-            <span>VSync</span>
+            <span>Sincronização</span>
           </label>
           <label>
             <input
@@ -1083,7 +1113,7 @@ function RendererControls({
               checked={config.debugOverlay}
               onChange={(event) => onChange({ debugOverlay: event.target.checked })}
             />
-            <span>Debug</span>
+            <span>Diagnóstico</span>
           </label>
         </div>
       </div>
@@ -1106,12 +1136,12 @@ function RendererDiagnosticsPanel({
     <div className="renderer-diagnostics" aria-label="Diagnóstico gráfico">
       <div className="renderer-diagnostics-head">
         <span>{rendererModeLabels[config.renderer]}</span>
-        <strong>{diagnostics?.rendererLabel ?? 'Inicializando renderer'}</strong>
+        <strong>{diagnostics?.rendererLabel ?? 'Inicializando renderizador'}</strong>
       </div>
       <dl>
         <div>
           <dt>Ativo</dt>
-          <dd>{diagnostics?.activeRenderer ?? 'none'}</dd>
+          <dd>{activeRendererLabel(diagnostics?.activeRenderer)}</dd>
         </div>
         <div>
           <dt>GPU</dt>
@@ -1144,7 +1174,7 @@ function RendererDiagnosticsPanel({
 function TerminalTraining() {
   const [activeCommand, setActiveCommand] = useState(commandBank[0]);
   const [typed, setTyped] = useState('ip a');
-  const [history, setHistory] = useState<string[]>(['scope validated', 'evidence mode ready']);
+  const [history, setHistory] = useState<string[]>(['escopo validado', 'modo evidência pronto']);
   const matched = commandBank.find((item) => typed.trim().startsWith(item.command));
   const displayCommand = matched ?? activeCommand;
 
@@ -1207,7 +1237,7 @@ function FlashcardDeck() {
       <div className="panel-title">
         <div>
           <p className="kicker">Memória</p>
-          <h3>Flashcards</h3>
+          <h3>Cartões de memória</h3>
         </div>
         <Layers3 size={18} />
       </div>
@@ -1616,7 +1646,7 @@ function saveEntrySeen() {
   try {
     localStorage.setItem(entrySeenKey, 'true');
   } catch {
-    // Non-critical: the gate still works for the current session.
+    // Não crítico: a entrada ainda funciona na sessão atual.
   }
 }
 
@@ -1624,18 +1654,55 @@ function clearEntrySeen() {
   try {
     localStorage.removeItem(entrySeenKey);
   } catch {
-    // Non-critical: only affects replay persistence.
+    // Não crítico: afeta apenas a persistência da abertura.
   }
 }
 
-function blockContains(block: ContentBlock, term: string) {
-  const haystack = block.type === 'table' ? block.rows.flat().join(' ') : block.text;
-  return normalize(haystack).includes(normalize(term));
+function buildSearchResults(sections: Section[], term: string): SearchResult[] {
+  const normalizedTerm = normalize(term);
+  const results: SearchResult[] = [];
+
+  sections.forEach((section) => {
+    if (normalize(section.title).includes(normalizedTerm)) {
+      results.push({
+        id: `${section.id}-title`,
+        section,
+        title: compactTitle(section.title),
+        snippet: sectionDigest(section),
+        matchLabel: 'Título',
+      });
+    }
+
+    section.blocks.forEach((block) => {
+      const text = blockText(block);
+      if (!normalize(text).includes(normalizedTerm)) return;
+      results.push({
+        id: block.id,
+        section,
+        block,
+        title: compactTitle(section.title),
+        snippet: searchSnippet(text, term),
+        matchLabel: block.type === 'table' ? 'Tabela' : block.type.startsWith('heading') ? 'Bloco' : 'Conteúdo',
+      });
+    });
+  });
+
+  return results.slice(0, 12);
 }
 
-function blockPreview(block: ContentBlock) {
-  const value = block.type === 'table' ? block.rows.flat().join(' | ') : block.text;
-  return value.replace(/\s+/g, ' ').slice(0, 140);
+function blockText(block: ContentBlock) {
+  return block.type === 'table' ? block.rows.flat().join(' | ') : block.text;
+}
+
+function searchSnippet(text: string, term: string) {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  const index = normalize(clean).indexOf(normalize(term));
+  if (index < 0) return clean.slice(0, 170);
+  const start = Math.max(0, index - 58);
+  const end = Math.min(clean.length, index + term.length + 110);
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < clean.length ? '...' : '';
+  return `${prefix}${clean.slice(start, end)}${suffix}`;
 }
 
 function normalize(value: string) {
@@ -1660,16 +1727,58 @@ function renderHighlighted(text: string, query: string) {
   const term = query.trim();
   if (!term) return text;
 
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`(${escaped})`, 'gi');
-  const parts = text.split(regex);
-  return parts.map((part, index) =>
-    part.toLowerCase() === term.toLowerCase() ? (
-      <mark key={`${part}-${index}`}>{part}</mark>
-    ) : (
-      <span key={`${part}-${index}`}>{part}</span>
-    ),
-  );
+  const haystack = normalizedWithMap(text);
+  const needle = normalize(term);
+  if (!needle) return text;
+
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  let searchFrom = 0;
+  let partIndex = 0;
+
+  while (searchFrom < haystack.value.length) {
+    const matchIndex = haystack.value.indexOf(needle, searchFrom);
+    if (matchIndex < 0) break;
+
+    const start = haystack.map[matchIndex] ?? 0;
+    const end = haystack.map[matchIndex + needle.length] ?? text.length;
+
+    if (start > cursor) {
+      parts.push(<span key={`t-${partIndex++}`}>{text.slice(cursor, start)}</span>);
+    }
+
+    parts.push(<mark key={`m-${partIndex++}`}>{text.slice(start, end)}</mark>);
+    cursor = end;
+    searchFrom = matchIndex + needle.length;
+  }
+
+  if (!parts.length) return text;
+  if (cursor < text.length) {
+    parts.push(<span key={`t-${partIndex}`}>{text.slice(cursor)}</span>);
+  }
+
+  return parts;
+}
+
+function normalizedWithMap(value: string) {
+  let normalizedValue = '';
+  const map: number[] = [];
+
+  for (let index = 0; index < value.length; ) {
+    const codePoint = value.codePointAt(index);
+    if (codePoint === undefined) break;
+
+    const char = String.fromCodePoint(codePoint);
+    const folded = normalize(char);
+    for (const foldedChar of folded) {
+      normalizedValue += foldedChar;
+      map.push(index);
+    }
+    index += char.length;
+  }
+
+  map.push(value.length);
+  return { value: normalizedValue, map };
 }
 
 function looksLikeCode(text: string) {
@@ -1685,6 +1794,12 @@ function isFieldNote(text: string) {
 
 function scrollToSection(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function activeRendererLabel(renderer?: RendererDiagnostics['activeRenderer']) {
+  if (!renderer || renderer === 'none') return 'nenhum';
+  if (renderer === 'software') return 'fallback';
+  return renderer;
 }
 
 function defaultRendererConfigDiagnostics(renderer: RendererMode): RendererDiagnostics {

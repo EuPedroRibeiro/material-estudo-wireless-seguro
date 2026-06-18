@@ -12,7 +12,7 @@ const gpuBufferUsage = () => (globalThis as any).GPUBufferUsage;
 
 export class DirectXRenderer implements RendererInterface {
   readonly id = 'directx' as const;
-  readonly label = 'DirectX Renderer (WebGPU bridge)';
+  readonly label = 'Renderizador DirectX (ponte WebGPU)';
 
   private device: any = null;
   private context: any = null;
@@ -70,9 +70,9 @@ export class DirectXRenderer implements RendererInterface {
       activeRenderer: this.id,
       rendererLabel: this.label,
       gpuName: gpuName || 'GPU WebGPU',
-      driver: driver || 'WebGPU browser adapter',
+      driver: driver || 'Adaptador WebGPU do navegador',
       directXAvailable: true,
-      directXVersion: 'WebGPU bridge (DirectX-class, não nativo)',
+      directXVersion: 'Ponte WebGPU (classe DirectX, não nativo)',
       hardwareAcceleration: true,
       timestamp: Date.now(),
     };
@@ -81,7 +81,7 @@ export class DirectXRenderer implements RendererInterface {
   }
 
   resize() {
-    // WebGPU tracks the canvas size directly; buffers are viewport independent.
+    // WebGPU acompanha o tamanho do canvas diretamente.
   }
 
   render(input: RenderFrameInput) {
@@ -99,7 +99,7 @@ export class DirectXRenderer implements RendererInterface {
       colorAttachments: [
         {
           view: this.context.getCurrentTexture().createView(),
-          clearValue: { r: 0.067, g: 0.075, b: 0.059, a: 1 },
+          clearValue: { r: 0.02, g: 0.02, b: 0.02, a: 1 },
           loadOp: 'clear',
           storeOp: 'store',
         },
@@ -119,7 +119,7 @@ export class DirectXRenderer implements RendererInterface {
   }
 
   getDiagnostics() {
-    if (!this.diagnostics) throw new Error('Renderer DirectX ainda não foi inicializado.');
+    if (!this.diagnostics) throw new Error('Renderizador DirectX ainda não foi inicializado.');
     return this.diagnostics;
   }
 
@@ -233,9 +233,9 @@ function buildLineVertices() {
 
 function buildQuadVertices(mode: string, timeMs: number) {
   const quads = [
-    ...makeQuad(-0.64, -0.36, 0.055, [0.3, 0.78, 0.94]),
-    ...makeQuad(0, 0.36, 0.055, [0.21, 0.88, 0.56]),
-    ...makeQuad(0.64, -0.36, 0.055, [1, 0.82, 0.4]),
+    ...makeQuad(-0.64, -0.36, 0.055, [0.94, 0.94, 0.9]),
+    ...makeQuad(0, 0.36, 0.055, [0.66, 0.66, 0.66]),
+    ...makeQuad(0.64, -0.36, 0.055, [1, 0.12, 0.18]),
     ...makePacketQuad(mode, timeMs),
   ];
 
@@ -254,7 +254,7 @@ function makePacketQuad(mode: string, timeMs: number) {
   const t = ((timeMs / 11) % 120) / 120;
   const x = from[0] + (to[0] - from[0]) * t;
   const y = from[1] + (to[1] - from[1]) * t + Math.sin(t * Math.PI) * 0.12;
-  return makeQuad(x, y, 0.028, [0.95, 0.78, 0.26]);
+  return makeQuad(x, y, 0.028, [1, 0.12, 0.18]);
 }
 
 function makeQuad(x: number, y: number, size: number, color: number[]) {

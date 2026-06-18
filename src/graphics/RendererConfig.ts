@@ -12,13 +12,13 @@ export const defaultRendererConfig: RendererConfig = {
   renderer: 'auto',
   vsync: true,
   fpsLimit: 60,
-  debugOverlay: true,
+  debugOverlay: false,
   useHardwareAcceleration: true,
 };
 
 export const rendererModeLabels: Record<RendererMode, string> = {
-  auto: 'Auto',
+  auto: 'Automático',
   directx: 'DirectX',
   opengl: 'OpenGL',
-  software: 'Software',
+  software: 'Fallback',
 };

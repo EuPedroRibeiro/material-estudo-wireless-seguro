@@ -11,7 +11,7 @@ type SceneNode = {
 
 export class SoftwareRenderer implements RendererInterface {
   readonly id = 'software' as const;
-  readonly label = 'Software Renderer (Canvas 2D)';
+  readonly label = 'Renderizador fallback (Canvas 2D)';
 
   private canvas: HTMLCanvasElement | null = null;
   private context: CanvasRenderingContext2D | null = null;
@@ -37,7 +37,7 @@ export class SoftwareRenderer implements RendererInterface {
       activeRenderer: this.id,
       rendererLabel: this.label,
       gpuName: baseDiagnostics.gpuName === 'Não detectada' ? 'CPU / Canvas 2D' : baseDiagnostics.gpuName,
-      driver: baseDiagnostics.driver === 'Não detectado' ? 'Browser Canvas 2D' : baseDiagnostics.driver,
+      driver: baseDiagnostics.driver === 'Não detectado' ? 'Navegador Canvas 2D' : baseDiagnostics.driver,
       hardwareAcceleration: false,
       timestamp: Date.now(),
     };
@@ -60,13 +60,13 @@ export class SoftwareRenderer implements RendererInterface {
     const height = input.height / scale;
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, width, height);
-    context.fillStyle = '#11130f';
+    context.fillStyle = '#050505';
     context.fillRect(0, 0, width, height);
 
     const nodes: SceneNode[] = [
-      { x: width * 0.18, y: height * 0.68, label: 'STA', color: '#4cc9f0' },
-      { x: width * 0.5, y: height * 0.35, label: 'AP', color: '#35e08f' },
-      { x: width * 0.82, y: height * 0.68, label: 'DEF', color: '#ffd166' },
+      { x: width * 0.18, y: height * 0.68, label: 'STA', color: '#f5f5f0' },
+      { x: width * 0.5, y: height * 0.35, label: 'AP', color: '#a8a8a8' },
+      { x: width * 0.82, y: height * 0.68, label: 'DEF', color: '#ff1f2d' },
     ];
 
     context.strokeStyle = 'rgba(245, 242, 232, 0.12)';
@@ -118,7 +118,7 @@ export class SoftwareRenderer implements RendererInterface {
       activeRenderer: this.id,
       rendererLabel: this.label,
       gpuName: 'CPU / Canvas 2D',
-      driver: 'Browser Canvas 2D',
+      driver: 'Navegador Canvas 2D',
       directXAvailable: false,
       openglAvailable: false,
       directXVersion: 'Indisponível',
@@ -152,23 +152,23 @@ export class SoftwareRenderer implements RendererInterface {
 function getScenePaths(mode: string, nodes: SceneNode[]): [SceneNode, SceneNode, string][] {
   if (mode === 'handshake') {
     return [
-      [nodes[0], nodes[1], '#4cc9f0'],
-      [nodes[1], nodes[0], '#35e08f'],
-      [nodes[0], nodes[1], '#ffd166'],
-      [nodes[1], nodes[0], '#ff6b6b'],
+      [nodes[0], nodes[1], '#f5f5f0'],
+      [nodes[1], nodes[0], '#a8a8a8'],
+      [nodes[0], nodes[1], '#ff1f2d'],
+      [nodes[1], nodes[0], '#ff1f2d'],
     ];
   }
 
   if (mode === 'defense') {
     return [
-      [nodes[1], nodes[2], '#35e08f'],
-      [nodes[2], nodes[1], '#ffd166'],
+      [nodes[1], nodes[2], '#a8a8a8'],
+      [nodes[2], nodes[1], '#ff1f2d'],
     ];
   }
 
   return [
-    [nodes[0], nodes[1], '#4cc9f0'],
-    [nodes[1], nodes[2], '#35e08f'],
-    [nodes[2], nodes[0], '#ffd166'],
+    [nodes[0], nodes[1], '#f5f5f0'],
+    [nodes[1], nodes[2], '#a8a8a8'],
+    [nodes[2], nodes[0], '#ff1f2d'],
   ];
 }

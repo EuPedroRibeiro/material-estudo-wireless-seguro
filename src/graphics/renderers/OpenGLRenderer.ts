@@ -5,14 +5,14 @@ import type { RenderFrameInput, RendererInterface } from '../RendererInterface';
 type WebGLContext = WebGLRenderingContext | WebGL2RenderingContext;
 
 const nodePositions = [
-  [-0.64, -0.36, 0.3, 0.78, 0.94],
-  [0, 0.36, 0.21, 0.88, 0.56],
-  [0.64, -0.36, 1, 0.82, 0.4],
+  [-0.64, -0.36, 0.94, 0.94, 0.9],
+  [0, 0.36, 0.66, 0.66, 0.66],
+  [0.64, -0.36, 1, 0.12, 0.18],
 ];
 
 export class OpenGLRenderer implements RendererInterface {
   readonly id = 'opengl' as const;
-  readonly label = 'OpenGL Renderer (WebGL)';
+  readonly label = 'Renderizador OpenGL (WebGL)';
 
   private gl: WebGLContext | null = null;
   private program: WebGLProgram | null = null;
@@ -87,7 +87,7 @@ export class OpenGLRenderer implements RendererInterface {
 
     const vertices = buildSceneVertices(input.mode, input.timeMs);
     gl.viewport(0, 0, input.width, input.height);
-    gl.clearColor(0.067, 0.075, 0.059, 1);
+    gl.clearColor(0.02, 0.02, 0.02, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -111,7 +111,7 @@ export class OpenGLRenderer implements RendererInterface {
   }
 
   getDiagnostics() {
-    if (!this.diagnostics) throw new Error('Renderer OpenGL ainda não foi inicializado.');
+    if (!this.diagnostics) throw new Error('Renderizador OpenGL ainda não foi inicializado.');
     return this.diagnostics;
   }
 
@@ -149,9 +149,9 @@ function buildSceneVertices(mode: string, timeMs: number) {
     ...nodePositions[2],
     packetX,
     packetY,
-    0.95,
-    0.78,
-    0.26,
+    1,
+    0.12,
+    0.18,
   ]);
 }
 
