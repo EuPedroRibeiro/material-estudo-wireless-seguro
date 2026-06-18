@@ -64,8 +64,25 @@ type MaterialData = {
     tableCount: number;
     blockCount: number;
     contentHash: string;
+    generatedFrom?: string;
   };
   blocks: ContentBlock[];
+};
+
+type RawMaterialData = {
+  metadata: {
+    title?: string;
+    subtitle?: string;
+    description?: string;
+    sourceFile?: string;
+    paragraphCount?: number;
+    tableCount?: number;
+    blockCount?: number;
+    contentHash?: string;
+    generatedFrom?: string;
+  };
+  blocks?: ContentBlock[];
+  conteudo_completo?: string;
 };
 
 type LabMode = (typeof labModes)[number]['key'];
@@ -79,7 +96,7 @@ type SearchResult = {
   matchLabel: string;
 };
 
-const data = material as MaterialData;
+const data = normalizeMaterialData(material as RawMaterialData);
 const storageKey = 'wireless-study-progress-v1';
 const entrySeenKey = 'wireless-lab-drive-entry-seen';
 
@@ -505,10 +522,10 @@ function SearchPanel({
             <strong>{results.length ? `${results.length} resultado(s)` : 'Nenhum resultado encontrado'}</strong>
           </div>
           <div className="result-list">
-            {results.map((result) => (
+            {results.map((result, index) => (
               <button
                 className="search-result"
-                key={result.id}
+                key={`${result.id}-${index}`}
                 type="button"
                 onClick={() => {
                   setIsOpen(false);
@@ -862,7 +879,7 @@ function ModuleJourneyMap({
       <div className="journey-route">
         {sections.map((section, index) => (
           <ModuleNode
-            key={section.id}
+            key={`${section.id}-${index}`}
             section={section}
             index={index}
             isActive={section.id === activeSection.id}
@@ -970,7 +987,7 @@ function StudyReader({
           aria-label="Selecionar seção"
         >
           {sections.map((section) => (
-            <option key={section.id} value={section.id}>
+            <option key={`${section.id}-${section.index}`} value={section.id}>
               {String(section.index).padStart(2, '0')} - {compactTitle(section.title)}
             </option>
           ))}
@@ -984,8 +1001,8 @@ function StudyReader({
       </div>
 
       <div className="content-stream">
-        {activeSection.blocks.map((block) => (
-          <ContentBlockView key={block.id} block={block} query={query} />
+        {activeSection.blocks.map((block, index) => (
+          <ContentBlockView key={`${block.id}-${index}`} block={block} query={query} />
         ))}
       </div>
     </article>
@@ -1570,6 +1587,136 @@ function FieldNote({
       </div>
     </article>
   );
+}
+
+function normalizeMaterialData(input: RawMaterialData): MaterialData {
+  const blocks =
+    Array.isArray(input.blocks) && input.blocks.length
+      ? input.blocks
+      : buildBlocksFromCompleteContent(input.conteudo_completo ?? '');
+  const tableCount = blocks.filter((block) => block.type === 'table').length;
+  const paragraphCount = blocks.filter((block) => block.type !== 'table' && !block.type.startsWith('heading')).length;
+
+  return {
+    metadata: {
+      title: input.metadata.title ?? 'MATERIAL DE ESTUDO PREMIUM',
+      subtitle: input.metadata.subtitle ?? '',
+      description: input.metadata.description ?? '',
+      sourceFile: input.metadata.sourceFile ?? 'material_estudo_premium_wireless_seguro.docx',
+      paragraphCount: input.metadata.paragraphCount ?? paragraphCount,
+      tableCount: input.metadata.tableCount ?? tableCount,
+      blockCount: input.metadata.blockCount ?? blocks.length,
+      contentHash: input.metadata.contentHash ?? '',
+      generatedFrom: input.metadata.generatedFrom,
+    },
+    blocks,
+  };
+}
+
+function buildBlocksFromCompleteContent(content: string): ContentBlock[] {
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
+  const blocks: ContentBlock[] = [];
+  let index = 0;
+  let blockIndex = 1;
+
+  const nextId = () => `conteudo-completo-${blockIndex++}`;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    if (isMarkdownTableStart(lines, index)) {
+      const tableLines: string[] = [];
+      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+        tableLines.push(lines[index]);
+        index += 1;
+      }
+      const rows = tableLines
+        .filter((tableLine) => !/^\s*\|?\s*:?-{3,}/.test(tableLine))
+        .map((tableLine) =>
+          tableLine
+            .trim()
+            .replace(/^\|/, '')
+            .replace(/\|$/, '')
+            .split('|')
+            .map((cell) => cell.trim()),
+        );
+      if (rows.length) {
+        blocks.push({ id: nextId(), type: 'table', rows });
+      }
+      continue;
+    }
+
+    const heading = parseContentHeading(trimmed);
+    if (heading) {
+      blocks.push({ id: nextId(), type: heading.type, style: null, text: heading.text });
+      index += 1;
+      continue;
+    }
+
+    blocks.push({
+      id: nextId(),
+      type: /^[-*]\s+|\d+\.\s+/.test(trimmed) ? 'list' : 'paragraph',
+      style: null,
+      text: trimmed,
+    });
+    index += 1;
+  }
+
+  return blocks.length
+    ? blocks
+    : [
+        {
+          id: 'conteudo-completo-vazio',
+          type: 'paragraph',
+          style: null,
+          text: 'Conteúdo indisponível no material carregado.',
+        },
+      ];
+}
+
+function isMarkdownTableStart(lines: string[], index: number) {
+  const current = lines[index]?.trim() ?? '';
+  const next = lines[index + 1]?.trim() ?? '';
+  return current.startsWith('|') && current.includes('|') && /^\|?\s*:?-{3,}/.test(next);
+}
+
+function parseContentHeading(line: string): { type: 'heading1' | 'heading2' | 'heading'; text: string } | null {
+  const markdownHeading = /^(#{1,6})\s+(.+)$/.exec(line);
+  if (markdownHeading) {
+    const level = markdownHeading[1].length;
+    const text = markdownHeading[2].trim();
+    return {
+      type: level === 1 || isModuleTitle(text) ? 'heading1' : level === 2 ? 'heading2' : 'heading',
+      text,
+    };
+  }
+
+  if (isModuleTitle(line)) {
+    return { type: 'heading1', text: line };
+  }
+
+  const normalized = normalize(line);
+  if (
+    ['material de estudo premium - seguranca wireless', 'regras de ouro', 'mapa de estudo'].includes(normalized)
+  ) {
+    return { type: blocksHeadingType(line), text: line };
+  }
+
+  return null;
+}
+
+function blocksHeadingType(line: string): 'heading1' | 'heading2' {
+  return normalize(line).startsWith('material de estudo') ? 'heading1' : 'heading2';
+}
+
+function isModuleTitle(text: string) {
+  return /^modulo\s+\d+/i.test(normalize(text));
 }
 
 function buildSections(blocks: ContentBlock[]): Section[] {
